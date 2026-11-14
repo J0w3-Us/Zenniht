@@ -1,0 +1,9 @@
+# Mínimos para el prototipo (software libre). Fija versiones con `pip freeze` cuando la instalación funcione.
+numpy
+pandas
+scikit-learn
+torch>=2.0
+lightning>=2.0
+pytorch-forecasting>=1.0
+pytest
+# Agrega aquí las dependencias del backend de Jarbis que se conserven.
