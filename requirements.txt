@@ -1,9 +1,14 @@
-# Mínimos para el prototipo (software libre). Fija versiones con `pip freeze` cuando la instalación funcione.
-numpy
-pandas
-scikit-learn
-torch>=2.0
-lightning>=2.0
-pytorch-forecasting>=1.0
-pytest
-# Agrega aquí las dependencias del backend de Jarbis que se conserven.
+# Entorno estándar local de ZENIT: PyTorch CPU, sin dependencia de GPU.
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
+
+numpy==2.4.4
+pandas==3.0.3
+scikit-learn==1.9.1
+torch==2.15.0+cpu
+lightning==2.6.6
+pytorch-forecasting==1.8.0
+fastapi==0.136.1
+uvicorn==0.46.0
+httpx==0.28.1
+pytest==9.0.3

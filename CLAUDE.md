@@ -10,11 +10,14 @@ Un prototipo local que parte del repositorio **Open-Jarbis** (ya en en la carpet
 
 ## Restricciones obligatorias (no se negocian)
 1. **Universo cerrado:** 1 farmacia ficticia (Nombre La Esperanza), 50 productos, 90 días, 4,500 filas. Nada de más productos, sucursales ni días.
-2. **Costo cero:** sin APIs de pago, sin nube, sin servidores externos, sin licencias comerciales. Solo software libre.
-3. **Local y sin internet:** debe correr fluido en una computadora personal común durante la clase, sin configuración de red.
-4. **Mismo algoritmo que el escenario real:** Temporal Fusion Transformer (TFT) con `pytorch-forecasting`, `hidden_size` 16, en CPU, horizonte de 7 días. No lo reemplaces por otro modelo ni por una API.
+2. **Costo cero:** solo software libre; sin APIs, proveedores, nube, telemetría ni servidores externos en el flujo del prototipo. No descargar modelos en tiempo de ejecución.
+3. **Local y sin internet:** el prototipo debe arrancar y funcionar sin conexión ni configuración de red. La instalación o preparación previa de dependencias no convierte la conexión en requisito de ejecución.
+4. **Mismo algoritmo que el escenario real:** Temporal Fusion Transformer (TFT) con `pytorch-forecasting`, `hidden_size` 16, en CPU, horizonte de 7 días. El modelo pronostica el quiebre diario; corrige la salida por la ponderación de clases y agrega el riesgo semanal como `1 - producto(1 - p_diaria)` bajo la suposición explícita de independencia entre días. No lo reemplaces por otro modelo ni por una API.
 5. **Mismos datos que la Sección 3:** toda métrica o hito usa solo esos 50 productos. La evaluación (F1-Score de la alerta de desabasto a 7 días) usa los **últimos 27 días**.
 6. **Recetas, sensores de frío y múltiples sucursales quedan fuera.** La cadena de frío es solo la columna `requiere_refrigeracion`.
+7. **Sin resultados simulados:** no uses respuestas precargadas, JSON de respaldo, reglas, ni otro modelo cuando falte el checkpoint o falle el TFT. Informa el error; solo una inferencia TFT válida cuenta como resultado o medición.
+8. **Acción humana:** las órdenes son sugerencias locales y siempre requieren aprobación explícita. No se compra, paga ni contacta a proveedores automáticamente. No se inventa una cantidad de compra: se deja sin definir hasta que el equipo acuerde una regla de reabasto.
+9. **Alcance funcional:** solo carga, predicción, priorización Kraljic, visualización y aprobación manual de sugerencias para el desabasto. Sin chat generativo, recetas, diagnóstico, sensores IoT, múltiples farmacias/sucursales o funciones ajenas al problema.
 
 Si una petición contradice una restricción, avisa antes de implementarla y propón una alternativa que sí la cumpla.
 
