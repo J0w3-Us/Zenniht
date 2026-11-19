@@ -1,0 +1,73 @@
+.zenit-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 10px;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+}
+
+.zenit-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zenit-pagination-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 0 9px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 160ms ease-out, border-color 160ms ease-out;
+}
+
+.zenit-pagination-button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
+}
+
+.zenit-pagination-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.zenit-pagination-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.zenit-pagination-current {
+  min-width: 90px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .zenit-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .zenit-pagination-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zenit-pagination-button {
+    transition: none;
+  }
+}

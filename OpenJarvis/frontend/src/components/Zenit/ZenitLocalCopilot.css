@@ -1,0 +1,338 @@
+.zenit-copilot {
+  position: fixed;
+  z-index: 50;
+  right: 22px;
+  bottom: 20px;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  --color-bg: oklch(0.955 0.014 98);
+  --color-bg-secondary: oklch(0.925 0.018 98);
+  --color-surface: oklch(0.985 0.008 98);
+  --color-border: oklch(0.84 0.018 100);
+  --color-border-subtle: oklch(0.88 0.015 100);
+  --color-text: oklch(0.25 0.025 160);
+  --color-text-secondary: oklch(0.43 0.025 160);
+  --color-text-tertiary: oklch(0.54 0.02 160);
+  --color-accent: oklch(0.43 0.095 155);
+  --color-accent-hover: oklch(0.36 0.095 155);
+  --color-accent-subtle: oklch(0.91 0.035 150);
+  --color-on-accent: oklch(0.985 0.008 98);
+  color: var(--color-text);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.zenit-copilot-panel {
+  display: grid;
+  width: min(380px, calc(100vw - 32px));
+  height: min(560px, calc(100dvh - 100px));
+  min-height: 360px;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface);
+  box-shadow: 0 12px 36px oklch(0.25 0.02 160 / 14%);
+}
+
+.zenit-copilot-header {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding: 11px 13px;
+}
+
+.zenit-copilot-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
+}
+
+.zenit-copilot-heading {
+  min-width: 0;
+  flex: 1;
+}
+
+.zenit-copilot-heading h2 {
+  margin: 0;
+  font-size: 0.83rem;
+  font-weight: 650;
+}
+
+.zenit-copilot-heading p {
+  margin: 3px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.66rem;
+}
+
+.zenit-copilot-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.zenit-copilot-close:hover {
+  border-color: var(--color-border);
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+}
+
+.zenit-copilot-context {
+  display: flex;
+  min-height: 36px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding: 7px 13px;
+  color: var(--color-text-secondary);
+  font-size: 0.64rem;
+}
+
+.zenit-copilot-context span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zenit-copilot-context svg {
+  color: var(--color-accent);
+}
+
+.zenit-copilot-conversation {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.zenit-copilot-transcript {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 12px;
+}
+
+.zenit-copilot-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.zenit-copilot-message.is-user {
+  justify-content: flex-end;
+}
+
+.zenit-copilot-message-mark {
+  display: grid;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  color: var(--color-accent);
+}
+
+.zenit-copilot-message-content {
+  max-width: 88%;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 7px;
+  padding: 9px 10px;
+  background: var(--color-bg);
+}
+
+.zenit-copilot-message.is-user .zenit-copilot-message-content {
+  border-color: color-mix(in oklch, var(--color-accent) 25%, var(--color-border));
+  background: var(--color-accent-subtle);
+}
+
+.zenit-copilot-message-content p {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.zenit-copilot-reply-action {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 0 8px;
+  background: var(--color-surface);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 0.67rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.zenit-copilot-reply-action:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
+}
+
+.zenit-copilot-reply-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.zenit-copilot-composer {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--color-border-subtle);
+  padding: 11px 12px 12px;
+}
+
+.zenit-copilot-composer label {
+  color: var(--color-text-secondary);
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+.zenit-copilot-input-row {
+  display: flex;
+  min-height: 40px;
+  gap: 6px;
+}
+
+.zenit-copilot-input-row input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  padding: 0 9px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+.zenit-copilot-input-row input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.zenit-copilot-input-row > button {
+  display: grid;
+  width: 40px;
+  min-width: 40px;
+  place-items: center;
+  border: 1px solid var(--color-accent);
+  border-radius: 5px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  cursor: pointer;
+}
+
+.zenit-copilot-input-row > button:hover:not(:disabled) {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+}
+
+.zenit-copilot-input-row > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.zenit-copilot-composer > p {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-size: 0.61rem;
+  line-height: 1.4;
+}
+
+.zenit-copilot-launcher {
+  display: inline-flex;
+  min-width: 52px;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  padding: 0 15px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 620;
+  cursor: pointer;
+  box-shadow: 0 4px 14px oklch(0.25 0.02 160 / 16%);
+  transition: background-color 160ms ease-out, border-color 160ms ease-out;
+}
+
+.zenit-copilot-launcher:hover {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+}
+
+.zenit-copilot-launcher.is-open {
+  min-width: 44px;
+  min-height: 44px;
+  padding-inline: 12px;
+}
+
+.zenit-copilot :focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .zenit-copilot {
+    right: 12px;
+    bottom: 12px;
+  }
+
+  .zenit-copilot-panel {
+    width: calc(100vw - 24px);
+    height: min(580px, calc(100dvh - 82px));
+    min-height: 320px;
+  }
+}
+
+@media (pointer: coarse) {
+  .zenit-copilot-close,
+  .zenit-copilot-reply-action,
+  .zenit-copilot-input-row > button {
+    min-height: 44px;
+  }
+
+  .zenit-copilot-close {
+    width: 44px;
+  }
+
+  .zenit-copilot-input-row > button {
+    width: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zenit-copilot-launcher,
+  .zenit-copilot-close,
+  .zenit-copilot-reply-action,
+  .zenit-copilot-input-row > button {
+    transition: none;
+  }
+}

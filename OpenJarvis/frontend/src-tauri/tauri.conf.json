@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ZENIT",
+  "version": "1.0.1",
+  "identifier": "mx.zenit.farmacia.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build:tauri"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "ZENIT · La Esperanza",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8000 ws://localhost:5173; img-src 'self' data: blob:; media-src 'self' blob:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": false,
+    "resources": {
+      "../../zenit_api.py": "zenit/zenit_api.py",
+      "../../db.py": "zenit/db.py",
+      "../../kraljic.py": "zenit/kraljic.py",
+      "../../data/ventas.csv": "zenit/data/ventas.csv",
+      "../../modelo/__init__.py": "zenit/modelo/__init__.py",
+      "../../modelo/datos.py": "zenit/modelo/datos.py",
+      "../../modelo/entrenar_tft.py": "zenit/modelo/entrenar_tft.py",
+      "../../modelo/losses.py": "zenit/modelo/losses.py",
+      "../../modelo/predecir.py": "zenit/modelo/predecir.py",
+      "../../modelo/zenith_tft.ckpt": "zenit/modelo/zenith_tft.ckpt"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "category": "Utility",
+    "shortDescription": "Predicción local de desabasto para La Esperanza",
+    "longDescription": "ZENIT ejecuta localmente el modelo TFT para priorizar alertas de desabasto en una farmacia ficticia. Las sugerencias requieren aprobación manual.",
+    "macOS": {
+      "entitlements": "Entitlements.plist",
+      "minimumSystemVersion": "10.15",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": "-"
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256"
+    }
+  }
+}
