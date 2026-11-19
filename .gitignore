@@ -4,3 +4,10 @@ __pycache__/
 .venv/
 venv/
 data/zenith.db
+node_modules/
+dist/
+build/
+*.ckpt
+OpenJarvis/src/openjarvis/zenit/data/zenith.db
+OpenJarvis/frontend/node_modules/
+OpenJarvis/frontend/dist/
