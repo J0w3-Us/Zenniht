@@ -43,13 +43,24 @@ Los pesos son los de la rúbrica del formato oficial de la Actividad 3.
 
 ## Estado de validación local
 
-Medición del 15 de noviembre de 2026 en el entorno local actual; no sustituye la prueba en la laptop más lenta del equipo:
+Medición adicional del 18 de noviembre de 2026 en la misma laptop Intel Core i5-1235U (10 núcleos físicos y 12 lógicos), con PyTorch limitado a un hilo intraoperatorio y uno interoperativo. Se usó `python -m modelo.medir_rendimiento`, con una pasada de calentamiento y 30 lotes de 50 productos:
 
-- Inferencia TFT: 30 repeticiones, p95 de **557.75 ms** (menor a 1,000 ms en este entorno).
+- Inicialización del dataset y carga del checkpoint: **2,344.33 ms**, fuera del tiempo de inferencia.
+- Inferencia TFT: mediana **214.19 ms**, p95 **240.44 ms**.
+- Llamada completa (preparación del lote y TFT): mediana **406.86 ms**, p95 **509.20 ms**.
+- Uso promedio del proceso durante las 30 llamadas: **0.95 núcleos equivalentes**; esta cifra es promedio, no un límite térmico del equipo.
+
+El hito de procesamiento queda por debajo de 1,000 ms en esta laptop. Esta corrida es más lenta que la medición del 17 de noviembre registrada abajo; no se atribuye la diferencia a una causa sin controlar las condiciones de energía, temperatura y carga. Se conserva la medición nueva y debe repetirse en la laptop más lenta, idealmente la de 3 núcleos. Limitar los hilos de PyTorch reduce su contención, pero no garantiza una temperatura específica ni limita otros procesos del sistema.
+
+Medición del 17 de noviembre de 2026 en una laptop con Intel Core i5-1235U (10 núcleos físicos y 12 lógicos), con el modelo cargado y 50 productos:
+
+- El PyTorch predeterminado usaba 10 hilos; antes del límite, la comparación corta ocupó en promedio 9.24 núcleos equivalentes. Con un hilo, la ocupación bajó a 0.96 núcleos equivalentes y la mediana de inferencia bajó de 88.79 ms a 64.36 ms.
+- Inferencia TFT con un hilo: 30 repeticiones, p95 de **69.60 ms** y mediana de **60.98 ms**. El p95 de la llamada completa fue 149.25 ms; incluye preparación del lote, pero no la carga inicial del checkpoint.
+- La probabilidad máxima cambió solo 4.3×10⁻¹⁰ al comparar 10 y 1 hilo; la cantidad de alertas se mantuvo igual.
 - F1 rodante: **0.0000**; 70 positivos reales de 1,050 casos. El checkpoint no emitió alertas con probabilidad ≥ 0.50.
 - Fecha de demo 2026-10-22: el modelo emitió 0 alertas, mientras que los datos contienen 6 productos con existencia cero en los siete días siguientes.
 
-Por lo tanto, el Hito de Procesamiento cumple solo en este entorno de medición; el Hito de Salida **no está cumplido**. No se deben agregar alertas prefabricadas ni bajar el umbral para aparentar cumplimiento.
+Por lo tanto, el Hito de Procesamiento cumple en esta laptop; aún debe repetirse en la laptop más lenta del equipo. El Hito de Salida **no está cumplido**. No se deben agregar alertas prefabricadas ni bajar el umbral para aparentar cumplimiento.
 
 ## 4. Declaración de coherencia (texto para el reporte)
 «Los tres hitos de validación usan exactamente los elementos comprometidos en las Secciones 1 y 2: el dataset cerrado de 50 productos y 90 días (4,500 registros, verificado con su huella SHA-256), el Temporal Fusion Transformer local en CPU como algoritmo, y la misma regla de alerta con umbral de probabilidad de 0.50. No se introducen datos ni métricas nuevas. Todos los hitos se demuestran en una computadora personal común, sin red externa ni servidores, con herramientas gratuitas (Python, SQLite, `time.perf_counter()` y la propia interfaz), por lo que el costo se mantiene en 0.00 MXN. Cada hito se expresa como funciona o no funciona con evidencia observable en pantalla.»
