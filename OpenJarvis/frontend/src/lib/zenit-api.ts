@@ -1,9 +1,5 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
-// En Tauri siempre apuntamos al sidecar local.
-// En web usamos VITE_ZENIT_API_URL si está definida; si no, localhost:8000.
-const _envUrl = (import.meta.env.VITE_ZENIT_API_URL as string | undefined)?.replace(/\/$/, '');
-const API_ORIGIN_WEB = _envUrl ?? 'http://localhost:8000';
 
 export interface ZenitOrder {
   id: number;
@@ -34,7 +30,7 @@ export interface ZenitState {
   } | null;
 }
 
-const API_ORIGIN = isTauri() ? 'http://127.0.0.1:8000' : API_ORIGIN_WEB;
+const API_ORIGIN = isTauri() ? 'http://127.0.0.1:8000' : 'http://localhost:8000';
 
 export async function getZenitStartupError(): Promise<string | null> {
   if (!isTauri()) return null;
