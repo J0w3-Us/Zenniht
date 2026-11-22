@@ -144,7 +144,7 @@ describe('ZenitOverviewPage', () => {
   it('presenta solo las alertas reales del estado TFT y su tiempo de inferencia', () => {
     const html = renderPage(createTftState());
 
-    expect(html).toContain('>Validado</span>');
+    expect(html).not.toContain('>Validado</span>');
     expect(html).toContain('2026-11-12');
     expect(html).toContain('>490</strong>');
     expect(html).toContain('Productos sin existencia');

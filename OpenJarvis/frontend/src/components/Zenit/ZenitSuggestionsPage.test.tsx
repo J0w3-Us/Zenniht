@@ -103,7 +103,7 @@ describe('ZenitSuggestionsPage', () => {
     const html = renderToStaticMarkup(
       <ZenitSuggestionsPage {...props} />,
     );
-    expect(html).toContain('Dataset validado: 4,500 filas y 50 productos.');
+    expect(html).not.toContain('Dataset validado: 4,500 filas y 50 productos.');
     expect(html).toContain('1 sugerencia pendiente');
     expect(html).toContain('Insulina glargina');
     expect(html).toContain('Cantidad por definir');

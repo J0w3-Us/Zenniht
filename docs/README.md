@@ -34,33 +34,37 @@ Bienvenido a la base de conocimiento de **ZENIT**. Toda la documentación ha sid
 ## 📂 Directorio de Documentos
 
 ### 1. `diseno/` (Design System & Tokens)
-- **[DESIGN_SYSTEM.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/diseno/DESIGN_SYSTEM.md)** `[Referencia]`:  
+- **[DESIGN_SYSTEM.md](./diseno/DESIGN_SYSTEM.md)** `[Referencia]`:  
   Tokens computables (formato Stitch YAML + Markdown), paleta cromática clínica en espacio **OKLCH**, reglas de elevación plana, componentes y la regla estricta de exclusividad del color rojo para desabasto.
+- **[PROPUESTAS_CHAT_IA.md](./diseno/PROPUESTAS_CHAT_IA.md)** `[Propuesta Futura — fuera del prototipo actual]`:  
+  Propuestas visuales para la evolución futura del copiloto conversacional. No sustituye el alcance congelado de [CLAUDE.md](../CLAUDE.md).
 
 ### 2. `producto/` (Estrategia, IA y Reglas de Negocio)
-- **[PRODUCT.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/producto/PRODUCT.md)** `[Explicación]`:  
+- **[PRODUCT.md](./producto/PRODUCT.md)** `[Explicación]`:  
   Propósito del producto, usuario arquetípico (dueño de la farmacia "La Esperanza"), principios estratégicos y anti-referencias visuales.
-- **[propuestas.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/producto/propuestas.md)** `[How-To / Arquitectura de IA]`:  
-  Capacidades operativas del asistente conversacional (Gemini, GPT o local), orquestación con el modelo predictivo TFT y **guardrails de seguridad obligatorios** para evitar cualquier alteración destructiva en la base de datos o exposición de datos sensibles.
+- **[propuestas.md](./producto/propuestas.md)** `[Propuesta Futura / Arquitectura de IA]`:  
+  Visión de evolución futura para un asistente conversacional con LLM y guardrails de seguridad. **Nota:** las funciones con LLM remoto, cotizaciones o cantidades automáticas quedan fuera del prototipo local de la Actividad 3 definido en [CLAUDE.md](../CLAUDE.md).
 
 ### 3. `guias/` (Tutoriales y Estado de Implementación)
-- **[INSTRUCCIONES_ZENIT.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/guias/INSTRUCCIONES_ZENIT.md)** `[Tutorial / Receta rápida]`:  
-  Flujo paso a paso con comandos reproducibles para inicializar datos, entrenar el TFT en CPU, ejecutar pruebas con `pytest` y levantar la API FastAPI y el frontend de Vite.
-- **[Alcance_logrado.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/guias/Alcance_logrado.md)** `[How-To / Diagnóstico]`:  
+- **[INSTRUCCIONES_ZENIT.md](./guias/INSTRUCCIONES_ZENIT.md)** `[Tutorial / Receta rápida]`:  
+  Flujo paso a paso con comandos reproducibles desde `OpenJarvis/` para inicializar datos, entrenar el TFT en CPU, ejecutar pruebas con `pytest` y levantar la API FastAPI y el frontend de Vite.
+- **[Alcance_logrado.md](./guias/Alcance_logrado.md)** `[How-To / Diagnóstico]`:  
   Estado de avance técnico verificado con evidencia (tiempos de inferencia, métricas F1 y funcionalidades validadas vs. pendientes).
 
 ### 4. `especificaciones/` (Fundamentos Metodológicos del Prototipo)
-- **[01_CONTEXTO_ZENITH.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/especificaciones/01_CONTEXTO_ZENITH.md)** `[Explicación]`:  
+- **[00_PROMPT_INICIAL.md](./especificaciones/00_PROMPT_INICIAL.md)** `[Referencia]`:  
+  Prompt base y contexto de arranque de la actividad.
+- **[01_CONTEXTO_ZENITH.md](./especificaciones/01_CONTEXTO_ZENITH.md)** `[Explicación]`:  
   El problema real de las farmacias comunitarias, la lógica de la Matriz de Kraljic y la arquitectura de percepción-razonamiento-acción.
-- **[02_RESTRICCIONES_SECCION_1.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/especificaciones/02_RESTRICCIONES_SECCION_1.md)** `[Referencia]`:  
+- **[02_RESTRICCIONES_SECCION_1.md](./especificaciones/02_RESTRICCIONES_SECCION_1.md)** `[Referencia]`:  
   Reglas del universo cerrado canónico (50 productos, 90 días, 4,500 filas, 8 columnas).
-- **[03_PLAN_DE_ARMADO.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/especificaciones/03_PLAN_DE_ARMADO.md)** `[How-To]`:  
+- **[03_PLAN_DE_ARMADO.md](./especificaciones/03_PLAN_DE_ARMADO.md)** `[How-To]`:  
   Plan de ingeniería paso a paso para el ensamblado del prototipo.
-- **[04_SECCION_2_ARQUITECTURA_FRUGAL.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/especificaciones/04_SECCION_2_ARQUITECTURA_FRUGAL.md)** `[Explicación]`:  
+- **[04_SECCION_2_ARQUITECTURA_FRUGAL.md](./especificaciones/04_SECCION_2_ARQUITECTURA_FRUGAL.md)** `[Explicación]`:  
   Justificación de costo 0.00 MXN mediante software libre y CPU local.
-- **[05_SECCION_3_HITOS_VALIDACION.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/especificaciones/05_SECCION_3_HITOS_VALIDACION.md)** `[Referencia]`:  
+- **[05_SECCION_3_HITOS_VALIDACION.md](./especificaciones/05_SECCION_3_HITOS_VALIDACION.md)** `[Referencia]`:  
   Criterios de éxito formal y registro histórico de pruebas.
 
 ### 5. `analisis_openjarvis/` (Auditoría del Código Base)
-- **[JARBIS_INVENTARIO.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/analisis_openjarvis/JARBIS_INVENTARIO.md)** y **[New_data_info.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/analisis_openjarvis/New_data_info.md)** `[Referencia]`:  
+- **[JARBIS_INVENTARIO.md](./analisis_openjarvis/JARBIS_INVENTARIO.md)** y **[New_data_info.md](./analisis_openjarvis/New_data_info.md)** `[Referencia]`:  
   Auditoría profunda de la arquitectura heredada de OpenJarvis y sus primitivas.

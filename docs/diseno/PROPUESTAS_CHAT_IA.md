@@ -1,6 +1,10 @@
-# Propuestas de Diseño UI: Chat e Interfaces de Asistencia con IA para ZENIT
+# Propuestas de Diseño UI: Chat e Interfaces de Asistencia con IA para ZENIT (Visión Futura)
 
-Documento de especificación visual, flujos de interacción y propuestas de interfaz para la integración de capacidades conversacionales inteligentes dentro de la plataforma **ZENIT | Farmacia La Esperanza**, alineado con la filosofía de diseño **"The Frugal Clinical Ledger"** ([DESIGN_SYSTEM.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/diseno/DESIGN_SYSTEM.md)) y los guardrails operativos ([propuestas.md](file:///c:/dev/projects/Zenith-Openjarvis/docs/producto/propuestas.md)).
+> [!IMPORTANT]
+> **Alcance del documento:** Estas propuestas visuales son conceptos de evolución futura del copiloto de inventario.
+> En el **prototipo actual de la Actividad 3** ([CLAUDE.md](../../CLAUDE.md) y [Alcance_logrado.md](../guias/Alcance_logrado.md)), la interfaz implementa un **copiloto local determinista sin LLM**, sin APIs remotas, sin costos/cotizaciones ni cantidades automáticas de compra (los mockups con precios, recetas proyectadas o cantidades sugeridas son solo ilustrativos para etapas posteriores y **no** deben implementarse dentro del prototipo congelado).
+
+Documento de especificación visual, flujos de interacción y propuestas de interfaz para la integración de capacidades conversacionales dentro de la plataforma **ZENIT | Farmacia La Esperanza**, alineado con la filosofía de diseño **"The Frugal Clinical Ledger"** ([DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md)) y los guardrails operativos ([propuestas.md](../producto/propuestas.md)).
 
 ---
 
@@ -161,8 +165,7 @@ A continuación se detallan tres propuestas arquitectónicas de interfaz:
 
 ---
 
-## 4. Estado de Conexión del MCP Pencil
+## 4. Notas de Integración con Herramientas de Diseño (Opcional)
 
-- **Servidor MCP Pencil configurado:** [mcp.json](file:///c:/dev/projects/Zenith-Openjarvis/mcp.json) apunta a `C:\Users\fitch\AppData\Local\Programs\Pencil\resources\app.asar.unpacked\out\mcp-server-windows-x64.exe --app desktop`.
-- **Modo interactivo Pencil:** El servidor MCP de Pencil requiere que la aplicación de escritorio (`Pen.exe`) esté abierta con un documento `.pen` activo para renderizar directamente en el lienzo infinito interactivo.
-- En cuanto abras tu archivo de diseño en Pencil, las herramientas de ejecución de trazo en canvas estarán sincronizadas con el proyecto.
+- Los mockups de esta guía pueden llevarse a herramientas de diseño compatibles con MCP (como Pencil) si el equipo tiene configurado su propio entorno local con un archivo `.pen` activo.
+- Esta integración es opcional de diseño y **no forma parte del tiempo de ejecución ni de las dependencias** del prototipo local de ZENIT.

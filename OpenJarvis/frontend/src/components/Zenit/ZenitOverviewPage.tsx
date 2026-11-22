@@ -1,7 +1,6 @@
 import {
   AlertTriangle,
   ArrowRight,
-  Check,
   Database,
   LoaderCircle,
   Upload,
@@ -265,18 +264,19 @@ export function ZenitOverviewPage({
         <section className="zenit-overview-analysis" aria-labelledby="zenit-overview-analysis-title">
           <header className="zenit-overview-section-heading">
             <div>
-              <p className="zenit-overview-eyebrow">Análisis local</p>
               <h2 id="zenit-overview-analysis-title">Dataset y predicción</h2>
             </div>
-            <span className={`zenit-overview-dataset-status ${datasetStatusClass}`}>
-              {dataset ? <Check aria-hidden="true" size={15} /> : <Database aria-hidden="true" size={15} />}
-              {datasetStatus}
-            </span>
+            {!dataset && !loading && (
+              <span className={`zenit-overview-dataset-status ${datasetStatusClass}`}>
+                <Database aria-hidden="true" size={15} />
+                {datasetStatus}
+              </span>
+            )}
           </header>
 
           <p className="zenit-overview-analysis-copy">
             {dataset
-              ? `Validado: ${state?.filas.toLocaleString('es-MX')} filas y 50 productos.`
+              ? `${state?.filas.toLocaleString('es-MX')} registros · 50 productos.`
               : state === null
                 ? 'Carga el dataset canónico para habilitar el TFT.'
                 : 'Se requieren 4,500 filas y exactamente 50 productos.'}

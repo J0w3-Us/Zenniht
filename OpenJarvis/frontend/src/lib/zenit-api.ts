@@ -30,6 +30,44 @@ export interface ZenitState {
   } | null;
 }
 
+export interface ZenitAgentStatus {
+  ollama_disponible: boolean;
+  url: string;
+  modelos: string[];
+  modelo_activo: string | null;
+  detalle: string;
+}
+
+export interface ZenitAgentTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ZenitAgentToolUse {
+  nombre: string;
+  fuente: string;
+}
+
+export interface ZenitAgentOrderSummary {
+  id: number;
+  producto: string;
+  cuadrante_kraljic: string;
+  probabilidad_desabasto: number;
+  estado: 'pendiente' | 'aprobada';
+  cantidad_sugerida: number | null;
+  fecha_corte: string;
+}
+
+export interface ZenitAgentChatResponse {
+  respuesta: string;
+  modelo: string;
+  herramientas_usadas: ZenitAgentToolUse[];
+  fuentes: string[];
+  estado_actualizado: ZenitState | null;
+  alertas: ZenitProduct[];
+  ordenes_pendientes: ZenitAgentOrderSummary[];
+}
+
 const API_ORIGIN = isTauri() ? 'http://127.0.0.1:8000' : 'http://localhost:8000';
 
 export async function getZenitStartupError(): Promise<string | null> {
@@ -90,4 +128,33 @@ export async function approveZenitOrder(orderId: number): Promise<void> {
     method: 'POST',
   });
   if (!response.ok) throw new Error(await readError(response));
+}
+
+export async function getZenitAgentStatus(model?: string): Promise<ZenitAgentStatus> {
+  const query = model ? `?modelo=${encodeURIComponent(model)}` : '';
+  const response = await fetch(apiUrl(`/api/zenit/agente/estado${query}`), {
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return (await response.json()) as ZenitAgentStatus;
+}
+
+export async function sendZenitAgentMessage(payload: {
+  mensaje: string;
+  historial: ZenitAgentTurn[];
+  modelo?: string | null;
+  fecha_corte?: string;
+}): Promise<ZenitAgentChatResponse> {
+  const response = await fetch(apiUrl('/api/zenit/agente/chat'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      mensaje: payload.mensaje,
+      historial: payload.historial,
+      modelo: payload.modelo ?? undefined,
+      fecha_corte: payload.fecha_corte,
+    }),
+  });
+  if (!response.ok) throw new Error(await readError(response));
+  return (await response.json()) as ZenitAgentChatResponse;
 }

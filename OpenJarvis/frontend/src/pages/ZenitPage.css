@@ -1,63 +1,66 @@
 .zenit-page {
-  color-scheme: light;
-  --color-bg: oklch(0.955 0.014 98);
-  --color-bg-secondary: oklch(0.925 0.018 98);
-  --color-bg-tertiary: oklch(0.895 0.02 98);
-  --color-surface: oklch(0.985 0.008 98);
-  --color-sidebar: oklch(0.94 0.01 155);
-  --color-border: oklch(0.84 0.018 100);
-  --color-border-subtle: oklch(0.88 0.015 100);
-  --color-text: oklch(0.25 0.025 160);
-  --color-text-secondary: oklch(0.43 0.025 160);
-  --color-text-tertiary: oklch(0.54 0.02 160);
-  --color-accent: oklch(0.43 0.095 155);
-  --color-accent-hover: oklch(0.36 0.095 155);
-  --color-accent-subtle: oklch(0.91 0.035 150);
-  --color-success: oklch(0.43 0.105 152);
-  --color-success-hover: oklch(0.37 0.105 152);
-  --color-success-bg: oklch(0.91 0.04 150);
-  --color-info: oklch(0.43 0.095 155);
-  --color-info-bg: oklch(0.91 0.035 150);
-  --color-on-accent: oklch(0.985 0.008 98);
-  --color-error: oklch(0.51 0.16 27);
-  --color-error-bg: oklch(0.93 0.035 27);
-  --color-input-bg: oklch(0.985 0.008 98);
-  --color-copilot-bg: oklch(0.235 0.04 160);
-  --color-copilot-raised: oklch(0.285 0.035 160);
-  --color-copilot-border: oklch(0.37 0.035 160);
-  --color-copilot-text: oklch(0.94 0.012 100);
-  --color-copilot-muted: oklch(0.76 0.02 150);
-  --color-copilot-accent: oklch(0.79 0.095 147);
-  --background: oklch(0.955 0.014 98);
-  --foreground: oklch(0.25 0.025 160);
-  --card: oklch(0.985 0.008 98);
-  --card-foreground: oklch(0.25 0.025 160);
-  --popover: oklch(0.985 0.008 98);
-  --popover-foreground: oklch(0.25 0.025 160);
-  --primary: oklch(0.43 0.095 155);
-  --primary-foreground: oklch(0.985 0.008 98);
-  --secondary: oklch(0.925 0.018 98);
-  --secondary-foreground: oklch(0.25 0.025 160);
-  --muted: oklch(0.925 0.018 98);
-  --muted-foreground: oklch(0.43 0.025 160);
-  --accent: oklch(0.91 0.035 150);
-  --accent-foreground: oklch(0.36 0.095 155);
-  --destructive: oklch(0.51 0.16 27);
-  --border: oklch(0.84 0.018 100);
-  --input: oklch(0.84 0.018 100);
-  --ring: oklch(0.43 0.095 155);
-  --chart-1: oklch(0.43 0.095 155);
-  --chart-2: oklch(0.43 0.105 152);
-  --chart-3: oklch(0.51 0.16 27);
-  --chart-4: oklch(0.57 0.08 85);
-  --chart-5: oklch(0.52 0.05 205);
+  color-scheme: dark;
+  --color-bg: oklch(0.165 0.02 225);
+  --color-bg-secondary: oklch(0.2 0.024 220);
+  --color-bg-tertiary: oklch(0.24 0.028 215);
+  --color-surface: oklch(0.215 0.024 220);
+  --color-sidebar: oklch(0.14 0.022 225);
+  --color-border: oklch(0.33 0.032 210);
+  --color-border-subtle: oklch(0.265 0.026 215);
+  --color-text: oklch(0.95 0.01 200);
+  --color-text-secondary: oklch(0.76 0.022 205);
+  --color-text-tertiary: oklch(0.6 0.022 210);
+  --color-accent: oklch(0.73 0.15 162);
+  --color-accent-hover: oklch(0.78 0.155 162);
+  --color-accent-subtle: oklch(0.26 0.055 165);
+  --color-success: oklch(0.74 0.15 158);
+  --color-success-hover: oklch(0.79 0.155 158);
+  --color-success-bg: oklch(0.25 0.055 160);
+  --color-info: oklch(0.72 0.13 215);
+  --color-info-bg: oklch(0.25 0.045 215);
+  --color-on-accent: oklch(0.14 0.028 165);
+  --color-error: oklch(0.7 0.185 25);
+  --color-error-bg: oklch(0.25 0.065 25);
+  --color-input-bg: oklch(0.19 0.022 222);
+  --color-copilot-bg: oklch(0.18 0.025 220);
+  --color-copilot-raised: oklch(0.22 0.028 218);
+  --color-copilot-border: oklch(0.32 0.032 210);
+  --color-copilot-text: oklch(0.95 0.01 200);
+  --color-copilot-muted: oklch(0.74 0.02 205);
+  --color-copilot-accent: oklch(0.75 0.145 160);
+  --background: oklch(0.165 0.02 225);
+  --foreground: oklch(0.95 0.01 200);
+  --card: oklch(0.215 0.024 220);
+  --card-foreground: oklch(0.95 0.01 200);
+  --popover: oklch(0.215 0.024 220);
+  --popover-foreground: oklch(0.95 0.01 200);
+  --primary: oklch(0.73 0.15 162);
+  --primary-foreground: oklch(0.14 0.028 165);
+  --secondary: oklch(0.2 0.024 220);
+  --secondary-foreground: oklch(0.95 0.01 200);
+  --muted: oklch(0.2 0.024 220);
+  --muted-foreground: oklch(0.76 0.022 205);
+  --accent: oklch(0.26 0.055 165);
+  --accent-foreground: oklch(0.78 0.155 162);
+  --destructive: oklch(0.7 0.185 25);
+  --border: oklch(0.33 0.032 210);
+  --input: oklch(0.33 0.032 210);
+  --ring: oklch(0.73 0.15 162);
+  --chart-1: oklch(0.73 0.15 162);
+  --chart-2: oklch(0.74 0.15 158);
+  --chart-3: oklch(0.7 0.185 25);
+  --chart-4: oklch(0.76 0.14 85);
+  --chart-5: oklch(0.7 0.12 215);
 }
 
 .zenit-page {
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
-  background: var(--color-bg);
+  background:
+    radial-gradient(circle at 82% 10%, oklch(0.26 0.065 165 / 32%), transparent 46%),
+    radial-gradient(circle at 16% 88%, oklch(0.23 0.05 225 / 35%), transparent 50%),
+    var(--color-bg);
   color: var(--color-text);
   font-family: "Segoe UI", system-ui, sans-serif;
 }
@@ -1257,22 +1260,18 @@
   position: sticky;
   top: 0;
   display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   height: 100dvh;
   min-height: 0;
   flex-direction: column;
-  gap: 30px;
+  gap: 24px;
+  overflow: hidden;
   border-right: 1px solid var(--color-border-subtle);
-  padding: 25px 16px 18px;
+  padding: 25px 14px 18px;
   background: var(--color-sidebar);
-  --color-text: oklch(0.25 0.025 160);
-  --color-text-secondary: oklch(0.43 0.025 160);
-  --color-text-tertiary: oklch(0.54 0.02 160);
-  --color-border: oklch(0.84 0.018 155);
-  --color-border-subtle: oklch(0.88 0.015 155);
-  --color-success: oklch(0.43 0.105 152);
-  --color-accent: oklch(0.43 0.095 155);
-  --color-accent-hover: oklch(0.36 0.095 155);
-  --color-accent-subtle: oklch(0.91 0.035 150);
 }
 
 .zenit-brand {
@@ -1312,7 +1311,18 @@
 }
 
 .zenit-nav {
-  display: grid;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zenit-nav-section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
   gap: 5px;
 }
 
@@ -1680,4 +1690,330 @@
   .zenit-nav-link {
     transition: none;
   }
+}
+
+/* Agente ZENIT (sidebar + vista principal tipo chat) */
+.zenit-new-chat-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  margin-bottom: 14px;
+  border: 1px solid var(--color-accent);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 150ms ease-out;
+}
+
+.zenit-new-chat-btn:hover {
+  background: var(--color-accent-hover);
+}
+
+.zenit-nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  border-radius: 999px;
+  padding: 1px 6px;
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.zenit-sidebar-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.zenit-status-dot.is-online {
+  background: var(--color-success);
+}
+
+.zenit-status-dot.is-offline {
+  background: var(--color-error);
+}
+
+.zenit-content.is-chat {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+/* Alertas temporales (toasts) que desaparecen solas */
+.zenit-toasts {
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 400px;
+  pointer-events: none;
+}
+
+.zenit-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid color-mix(in oklch, var(--color-error) 35%, var(--color-border));
+  border-radius: 10px;
+  padding: 11px 13px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--color-text) 14%, transparent);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  animation: zenit-toast-in 180ms ease-out;
+}
+
+.zenit-toast > svg {
+  flex: 0 0 auto;
+  color: var(--color-error);
+}
+
+.zenit-toast p {
+  flex: 1;
+  margin: 0;
+}
+
+.zenit-toast-action {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.73rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.zenit-toast-close {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.zenit-toast-close:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+@keyframes zenit-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Historial de conversaciones en la sidebar */
+.zenit-chat-history {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  margin-bottom: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.zenit-chat-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  max-height: 34dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zenit-chat-history-item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  align-items: center;
+  border-radius: 7px;
+  transition: background-color 140ms ease-out;
+}
+
+.zenit-chat-history-item:hover {
+  background: color-mix(in oklch, var(--color-accent) 10%, transparent);
+}
+
+.zenit-chat-history-item.is-active {
+  background: color-mix(in oklch, var(--color-accent) 16%, transparent);
+}
+
+.zenit-chat-history-btn {
+  display: flex;
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 8px 6px 8px 10px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.zenit-chat-history-btn svg {
+  flex: 0 0 auto;
+}
+
+.zenit-chat-history-item.is-active .zenit-chat-history-btn,
+.zenit-chat-history-item:hover .zenit-chat-history-btn {
+  color: var(--color-text);
+}
+
+.zenit-chat-history-btn span {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zenit-chat-history-delete {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 140ms ease-out, color 140ms ease-out;
+}
+
+.zenit-chat-history-item:hover .zenit-chat-history-delete,
+.zenit-chat-history-delete:focus-visible {
+  opacity: 1;
+}
+
+.zenit-chat-history-delete:hover {
+  color: var(--color-error);
+}
+
+/* Botón para abrir / cerrar la barra lateral con transición suave */
+.zenit-shell {
+  display: flex !important;
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.zenit-shell > .zenit-main {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.zenit-shell > .zenit-sidebar {
+  flex: 0 0 216px;
+  width: 216px;
+  min-width: 216px;
+  max-width: 216px;
+  margin-left: 0;
+  opacity: 1;
+  transform: translateX(0);
+  transition-property: margin-left, transform, opacity, border-color !important;
+  transition-duration: 320ms !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+  will-change: margin-left, transform, opacity;
+}
+
+.zenit-shell.is-sidebar-collapsed > .zenit-sidebar {
+  margin-left: -216px;
+  opacity: 0;
+  transform: translateX(-16px);
+  border-right-color: transparent;
+  pointer-events: none;
+}
+
+@media (max-width: 1180px) {
+  .zenit-shell > .zenit-sidebar {
+    flex-basis: 195px;
+    width: 195px;
+    min-width: 195px;
+    max-width: 195px;
+  }
+
+  .zenit-shell.is-sidebar-collapsed > .zenit-sidebar {
+    margin-left: -195px;
+  }
+}
+
+.zenit-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.zenit-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.zenit-sidebar-toggle {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color 150ms ease-out, color 150ms ease-out, border-color 150ms ease-out;
+}
+
+.zenit-sidebar-toggle:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
 }

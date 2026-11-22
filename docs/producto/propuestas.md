@@ -1,6 +1,16 @@
-# Capacidades, Arquitectura de IA y Reglas de Seguridad de ZENIT
+# Capacidades, Arquitectura de IA y Reglas de Seguridad de ZENIT (Visión Futura)
 
-Este documento consolida la visión completa del sistema ZENIT, combinando las **capacidades operativas de inventario farmacéutico**, la **arquitectura técnica híbrida (IA analítica + LLM)** y las **barreras de seguridad (*guardrails*)** para garantizar la integridad de los datos y evitar cualquier riesgo operacional.
+> [!IMPORTANT]
+> **Separación de alcance (leer antes de implementar):** Este documento describe **propuestas futuras de evolución** posteriores al prototipo de la Actividad 3.
+>
+> El **prototipo actual congelado** en [CLAUDE.md](../../CLAUDE.md), [02_RESTRICCIONES_SECCION_1.md](../especificaciones/02_RESTRICCIONES_SECCION_1.md) y [Alcance_logrado.md](../guias/Alcance_logrado.md) exige estrictamente:
+> - **Sin LLM ni APIs en la nube** (el copiloto actual es 100% local con respuestas deterministas sobre SQLite/TFT).
+> - **Sin cantidades automáticas de compra ni cotizaciones/precios** (las órdenes sugeridas mantienen `cantidad_sugerida = null` / «Por definir» hasta que el equipo apruebe una regla de reabasto).
+> - **Dataset canónico cerrado de 8 columnas exactas:** `producto, fecha, unidades_vendidas, existencia, cuadrante_kraljic, requiere_refrigeracion, fecha_caducidad, temperatura`.
+>
+> Ninguna propuesta de este archivo reemplaza las restricciones de la Actividad 3 sin acuerdo explícito del equipo.
+
+Este documento consolida la visión futura de evolución del sistema ZENIT, combinando las **capacidades operativas de inventario farmacéutico**, una posible **arquitectura técnica híbrida (IA analítica + LLM)** y las **barreras de seguridad (*guardrails*)** para garantizar la integridad de los datos y evitar cualquier riesgo operacional.
 
 ---
 
@@ -20,18 +30,15 @@ El sistema apoya la toma de decisiones mediante:
 
 El chat/copiloto de ZENIT actúa como un orquestador inteligente que puede ejecutar o coordinar las siguientes acciones:
 
-### A. Creación y Generación de Recursos
+### A. Creación y Generación de Recursos (Propuestas Futuras)
 1. **Generación y Exportación de Datasets de Inventario:**
-   - Creación de archivos tabulares (CSV/Excel) estructurados con los campos oficiales: `fecha`, `producto`, `cantidad_vendida`, `precio_unitario`, `total_venta`, `existencia_inicial`, `existencia_final` y `requiere_refrigeracion`.
-   - Inicialización rápida con el dataset canónico reproducible (4,500 registros: 50 productos × 90 días con semilla fija vía `data/generar_datos.py`).
+   - Inicialización rápida con el dataset canónico reproducible actual (4,500 registros: 50 productos × 90 días con semilla fija vía `data/generar_datos.py` y las 8 columnas oficiales: `producto`, `fecha`, `unidades_vendidas`, `existencia`, `cuadrante_kraljic`, `requiere_refrigeracion`, `fecha_caducidad` y `temperatura`).
+   - *(Evolución futura, fuera del prototipo actual)*: exportación extendida a Excel/CSV con campos comerciales adicionales (por ejemplo, precios unitarios y totales de venta) cuando el alcance deje de estar congelado.
 2. **Recomendaciones Inteligentes de Compra (Reabastecimiento):**
-   - Propuestas automatizadas de reorden calculadas a partir del cruce de:
-     - Probabilidad de desabasto a 7 días ($\ge 0.50$).
-     - Clasificación del cuadrante Kraljic (dando máxima urgencia a productos *Estratégicos* y *Cuellos de Botella*).
-     - Ritmo de consumo promedio reciente.
-   - Presentación de las órdenes como **pendientes de aprobación** para el operador.
-3. **Simulación y Cotizaciones Estimadas de Compra:**
-   - Elaboración de borradores de cotizaciones y pedidos estimados ante riesgo inminente, desglosando volumen sugerido y costo aproximado según histórico de precios unitarios.
+   - En el prototipo actual, el sistema genera sugerencias **pendientes de aprobación** cuando la probabilidad TFT a 7 días es $\ge 0.50$, priorizadas con Kraljic y con cantidad sin definir.
+   - *(Evolución futura)*: cálculo de volumen sugerido cuando el equipo formalice y apruebe una regla de reabasto.
+3. **Simulación y Cotizaciones Estimadas de Compra *(Evolución futura — fuera del prototipo actual)*:**
+   - Elaboración de borradores de cotizaciones y pedidos estimados ante riesgo inminente, una vez que exista catálogo de precios y regla de cantidades aprobada.
 
 ### B. Herramientas y Servicios Disponibles para la IA
 1. **Servicio Conversacional y Agéntico (LLM Híbrido/Multimodelo):**

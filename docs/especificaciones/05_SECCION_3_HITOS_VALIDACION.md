@@ -43,6 +43,16 @@ Los pesos son los de la rúbrica del formato oficial de la Actividad 3.
 
 ## Estado de validación local
 
+Medición del 21 de noviembre de 2026 (CPU AMD64, PyTorch CPU limitado a 1 hilo intraoperatorio y 1 interoperativo) tras reconstruir `OpenJarvis/modelo/` con variables puramente causales derivadas de las 8 columnas canónicas (`existencia_relativa`, `dias_cobertura`, `dias_sin_resurtido`, `es_quincena`), encoder fijo de 28 días, sin `producto` en `static_categoricals` ni `time_idx` absoluto en el decoder, y optimizador `Adam` (`lr=0.005`, `batch_size=128`, 45 épocas, `hidden_size=16`, `peso_positivo=156.5` calculado únicamente en los primeros 63 días):
+
+- Pruebas automatizadas (`python -m pytest -q --noconftest tests\zenit`): **25 passed, 0 failed**.
+- Inicialización del dataset y carga del checkpoint: **560.43 ms**, fuera del tiempo de inferencia.
+- Inferencia TFT (30 lotes de 50 productos tras 1 calentamiento): mediana **72.64 ms**, p95 **85.57 ms** (`< 1,000 ms`: **cumple** en este equipo).
+- Llamada completa (preparación del lote y TFT): mediana **120.95 ms**, p95 **176.62 ms**.
+- Uso promedio del proceso durante las 30 llamadas: **0.97 núcleos equivalentes**.
+- Evaluación rodante de los últimos 27 días (21 cortes × 50 productos = 1,050 casos, 70 positivos reales): **TP = 32, FP = 7, FN = 38, TN = 973** → **Precision = 0.8205**, **Recall = 0.4571**, **F1 = 0.5872** (sube desde `0.0000`).
+- Fecha de demo `2026-10-22`: el TFT emitió **2 alertas verdaderas (`≥ 0.50`) y 0 falsos positivos** — **Insulina glargina** (`1.0000`, Estratégico) y **Vacuna influenza** (`0.9799`, Cuello de botella, que no tuvo quiebres en entrenamiento), con **Losartán 50 mg** en `0.3672` (tercer riesgo más alto). Los otros tres productos que quiebran en los 7 días siguientes (*Paracetamol 500 mg*, *Antigripal sobres* y *Alcohol 70%*) aún estaban en los días 4 a 6 de su ciclo semanal normal el `2026-10-22` (su primer resurtido fallido ocurre después del corte), por lo que el Hito de Salida estricto (6 de 6 en esa fecha) sigue **parcial** y no se maquilla bajando el umbral.
+
 Medición adicional del 18 de noviembre de 2026 en la misma laptop Intel Core i5-1235U (10 núcleos físicos y 12 lógicos), con PyTorch limitado a un hilo intraoperatorio y uno interoperativo. Se usó `python -m modelo.medir_rendimiento`, con una pasada de calentamiento y 30 lotes de 50 productos:
 
 - Inicialización del dataset y carga del checkpoint: **2,344.33 ms**, fuera del tiempo de inferencia.

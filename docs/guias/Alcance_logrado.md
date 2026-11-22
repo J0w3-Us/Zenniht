@@ -23,7 +23,7 @@ ZENIT es una herramienta local de apoyo para anticipar el desabasto de medicamen
 | Sugerencias | Crea sugerencias pendientes para revisión. La persona debe aprobarlas explícitamente; la cantidad queda sin definir. |
 | Interfaz | Organiza Resumen, Inventario y Sugerencias con navegación adaptable y áreas desplazables. El resumen muestra unidades disponibles, productos sin existencias, alertas TFT y sugerencias pendientes, diferenciando el último corte de stock de la fecha de predicción. Los KPI abren la lista o el filtro correspondiente. Inventario, alertas y sugerencias muestran hasta 20 elementos por página; el historial del copiloto no se pagina. El copiloto local se abre desde una burbuja inferior. |
 
-El flujo de interfaz está en [ZenitPage.tsx](../OpenJarvis/frontend/src/pages/ZenitPage.tsx) y [InventoryTable.tsx](../OpenJarvis/frontend/src/components/Zenit/InventoryTable.tsx). Las rutas de backend están en [zenit_api.py](../OpenJarvis/zenit_api.py), la persistencia en [db.py](../OpenJarvis/db.py), y la inferencia en [predecir.py](../OpenJarvis/modelo/predecir.py).
+El flujo de interfaz está en [ZenitPage.tsx](../../OpenJarvis/frontend/src/pages/ZenitPage.tsx) y [InventoryTable.tsx](../../OpenJarvis/frontend/src/components/Zenit/InventoryTable.tsx). Las rutas de backend están en [zenit_api.py](../../OpenJarvis/zenit_api.py), la persistencia en [db.py](../../OpenJarvis/db.py), y la inferencia en [predecir.py](../../OpenJarvis/modelo/predecir.py).
 
 ## 3. Flujo práctico actual
 
@@ -47,7 +47,7 @@ Si falta el checkpoint, el CSV es inválido o la inferencia falla, debe mostrars
 - Kraljic sirve para priorizar la revisión. No debe alterar el resultado estadístico del TFT.
 - Una sugerencia no define una cantidad de compra hasta que el equipo acuerde una regla de reabasto.
 
-Las restricciones completas están en [CLAUDE.md](../CLAUDE.md), [02_RESTRICCIONES_SECCION_1.md](./02_RESTRICCIONES_SECCION_1.md) y [03_PLAN_DE_ARMADO.md](./03_PLAN_DE_ARMADO.md).
+Las restricciones completas están en [CLAUDE.md](../../CLAUDE.md), [02_RESTRICCIONES_SECCION_1.md](../especificaciones/02_RESTRICCIONES_SECCION_1.md) y [03_PLAN_DE_ARMADO.md](../especificaciones/03_PLAN_DE_ARMADO.md).
 
 ## 5. Funciones fuera de alcance
 
@@ -66,7 +66,7 @@ Estas exclusiones son parte del alcance de la actividad, no funciones pendientes
 
 ## 6. Validación y trabajo pendiente
 
-La implementación de una función y la validación de su hito son cosas distintas. El estado registrado en [05_SECCION_3_HITOS_VALIDACION.md](./05_SECCION_3_HITOS_VALIDACION.md) debe actualizarse cuando se haga una medición nueva.
+La implementación de una función y la validación de su hito son cosas distintas. El estado registrado en [05_SECCION_3_HITOS_VALIDACION.md](../especificaciones/05_SECCION_3_HITOS_VALIDACION.md) debe actualizarse cuando se haga una medición nueva.
 
 ### Pruebas con datos locales
 
@@ -80,9 +80,9 @@ La corrida anterior del 17 de noviembre registró 69.60 ms de p95 TFT. Como la n
 
 ### Calidad de las alertas
 
-La Sección 3 registra **F1 = 0.0000** y 70 positivos reales en 1,050 casos. Para la fecha de demostración 2026-10-22, ese registro indica que el modelo no emitió alertas pese a que seis productos llegan a existencia cero en los siete días siguientes. Por tanto, el hito de salida **no está cumplido**, aunque la inferencia sea rápida y el modelo esté conectado a la interfaz.
+En la corrida actualizada del 21 de noviembre de 2026 (con el mismo TFT de `pytorch-forecasting`, `hidden_size=16`, CPU, primeros 63 días de entrenamiento, horizonte de 7 días y umbral `0.50`, añadiendo variables causales derivadas de las mismas 8 columnas y optimización estable con `Adam`), la evaluación rodante en los últimos 27 días pasó de `F1 = 0.0000` a **F1 = 0.5872** (**Precision = 0.8205**, **Recall = 0.4571**, `TP = 32`, `FP = 7`, `FN = 38`, `TN = 973` sobre 70 positivos reales en 1,050 casos).
 
-No se deben bajar el umbral ni fabricar alertas para aparentar éxito. El siguiente trabajo de modelo debe investigar y mejorar el TFT manteniendo el algoritmo, el dataset, el horizonte y el umbral acordados; luego debe repetirse la evaluación.
+Para la fecha de demostración `2026-10-22`, el modelo emite **2 alertas reales (`≥ 0.50`) sin falsos positivos** (*Insulina glargina* con `1.0000` y *Vacuna influenza* con `0.9799`, generalizando a un producto que no quebró en entrenamiento) y ubica a *Losartán 50 mg* como tercer riesgo (`0.3672`). Como los otros tres productos que llegan a cero (*Paracetamol 500 mg*, *Antigripal sobres* y *Alcohol 70%*) aún no habían perdido su resurtido semanal en esa fecha de corte, no son detectables sin fuga de datos; por ello el hito de salida estricto (6 de 6 en `2026-10-22`) queda documentado como **cumplimiento parcial** sin bajar el umbral ni fabricar alertas.
 
 ### Comprobaciones pendientes
 
@@ -112,4 +112,4 @@ Las siguientes son posibles tareas de desarrollo dentro del objetivo de predicci
 - Mejorar la presentación del estado de validación para distinguir claramente “predicción calculada” de “predicción que cumple el hito”.
 - Completar y documentar el ensayo integral sin conexión en el equipo de demostración.
 
-No se propone ampliar el producto con recetas, proveedores, sucursales, sensores o conversación generativa. Cualquier propuesta que contradiga [CLAUDE.md](../CLAUDE.md) debe rechazarse o reformularse antes de escribir código.
+No se propone ampliar el producto con recetas, proveedores, sucursales, sensores o conversación generativa. Cualquier propuesta que contradiga [CLAUDE.md](../../CLAUDE.md) debe rechazarse o reformularse antes de escribir código.

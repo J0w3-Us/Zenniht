@@ -7,15 +7,45 @@ Este documento es una guía práctica (**How-To / Referencia técnica**) para de
 ## 1. Requisitos Previos y Entorno
 
 - **Sistema Operativo:** Windows, Linux o macOS.
-- **Python:** 3.10 a 3.12 (con soporte para PyTorch CPU).
-- **Node.js:** Versión 20+ con `npm`.
-- **Costo Financiero:** **0.00 MXN** (sin dependencias en la nube ni APIs comerciales requeridas).
+- **Python:** Entorno virtual `.venv` con las dependencias fijadas en `OpenJarvis/requirements.txt` (PyTorch CPU, `pytorch-forecasting`, FastAPI, Uvicorn, pytest).
+- **Node.js:** Versión `>=22.22` con `npm` (`>=11.19.0`), según `OpenJarvis/frontend/package.json`.
+- **Costo Financiero:** **0.00 MXN** (sin dependencias en la nube ni APIs comerciales requeridas durante la ejecución).
+
+> **Importante:** Todos los comandos del backend, datos, modelo y pruebas se ejecutan dentro de la carpeta `OpenJarvis/`, **no** desde la raíz del repositorio. No instales `OpenJarvis/pyproject.toml` (pertenece al proyecto base OpenJarvis); usa únicamente `OpenJarvis/requirements.txt`.
 
 ---
 
-## 2. Flujo de Ejecución Rápida (Paso a Paso)
+## 2. Preparación Única del Entorno
 
-Ejecuta los siguientes comandos desde la raíz del proyecto `Zenith-Openjarvis`:
+### Backend y modelo (Python)
+```powershell
+cd OpenJarvis
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+*(En Windows PowerShell, si el sistema bloquea scripts `.ps1`, ejecuta una sola vez: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.)*
+
+### Frontend (Node.js)
+```powershell
+cd OpenJarvis\frontend
+npm install
+```
+
+### Agente conversacional local (Ollama)
+Para usar el chat principal del **Agente ZENIT** 100% local (sin API keys ni créditos):
+1. Instala **Ollama** desde `https://ollama.com` y asegúrate de que esté corriendo en `http://127.0.0.1:11434`.
+2. Descarga un modelo ligero compatible con *tool calling* (recomendado `qwen2.5:3b`):
+```powershell
+ollama pull qwen2.5:3b
+```
+*(El agente usa Ollama únicamente para orquestar consultas de solo lectura en SQLite y disparar el TFT local; nunca reemplaza al TFT ni aprueba órdenes automáticamente.)*
+
+---
+
+## 3. Flujo de Ejecución Rápida (Paso a Paso)
+
+Ejecuta los pasos 1 a 4 desde la carpeta `OpenJarvis/` con el entorno virtual `.venv` activo:
 
 ### Paso 1: Generar los Datos Canónicos Sintéticos
 Genera el archivo `data/ventas.csv` y la base de datos `data/zenith.db` con semilla fija (50 productos × 90 días = 4,500 registros):
@@ -23,16 +53,22 @@ Genera el archivo `data/ventas.csv` y la base de datos `data/zenith.db` con semi
 python data\generar_datos.py
 ```
 
-### Paso 2: Entrenar o Validar el Modelo Predictivo (TFT)
-Entrena el modelo Temporal Fusion Transformer en CPU local (genera el checkpoint `modelo/zenith_tft.ckpt`):
+### Paso 2: Entrenar el Modelo Predictivo (TFT)
+Entrena el modelo Temporal Fusion Transformer en CPU local con los primeros 63 días (genera el checkpoint `modelo/zenith_tft.ckpt`):
 ```powershell
 python -m modelo.entrenar_tft
 ```
 
 ### Paso 3: Ejecutar la Suite de Pruebas Automatizadas
-Verifica la integridad de las 8 columnas del dataset, la distribución Kraljic y la coincidencia con SQLite:
+Verifica el universo cerrado, SQLite, el modelo TFT y la API local:
 ```powershell
-python -m pytest -q tests\zenit
+python -m pytest -q --noconftest tests\zenit
+```
+*(Se usa `--noconftest` para evitar cargar `tests/conftest.py` heredado de OpenJarvis, que requiere dependencias externas no usadas por ZENIT.)*
+
+Para medir el tiempo de inferencia en CPU (30 lotes de 50 productos + calentamiento):
+```powershell
+python -m modelo.medir_rendimiento
 ```
 
 ### Paso 4: Iniciar el Backend de la API Local
@@ -42,11 +78,12 @@ python -m uvicorn zenit_api:app --host 127.0.0.1 --port 8000
 ```
 > Endpoints clave disponibles:
 > - `GET /api/zenit/estado` - Devuelve existencias del último corte y alertas activas.
+> - `POST /api/zenit/cargar` / `POST /api/zenit/cargar-local` - Valida y carga el CSV canónico en SQLite.
 > - `POST /api/zenit/predecir` - Ejecuta la inferencia TFT para una fecha de corte dada.
 > - `POST /api/zenit/ordenes/{id}/aprobar` - Aprueba manualmente una orden sugerida.
 
 ### Paso 5: Iniciar la Interfaz Web (Vite + React)
-En una terminal separada, accede a la carpeta del frontend y levanta el entorno de desarrollo:
+En una terminal separada, accede a `OpenJarvis\frontend` y levanta el entorno de desarrollo:
 ```powershell
 cd OpenJarvis\frontend
 npm run dev
@@ -55,11 +92,13 @@ La aplicación abrirá automáticamente en: `http://localhost:5173/zenit`
 
 ---
 
-## 3. Matriz de Errores Comunes y Soluciones
+## 4. Matriz de Errores Comunes y Soluciones
 
 | Síntoma o Error | Causa Probable | Solución Inmediata |
 |---|---|---|
-| *"No se pudo conectar con la API local de ZENIT"* | El servidor FastAPI de `zenit_api.py` no está corriendo en el puerto 8000. | Ejecutar `python -m uvicorn zenit_api:app --host 127.0.0.1 --port 8000`. |
-| *"Checkpoint TFT no encontrado"* | No se ha ejecutado el entrenamiento inicial de la red. | Correr `python -m modelo.entrenar_tft` para generar `modelo/zenith_tft.ckpt`. |
-| *"Fallo en prueba de coincidencia CSV/SQLite"* | La base de datos `zenith.db` no existe o está desincronizada. | Regenerar el dataset ejecutando `python data/generar_datos.py`. |
-| *"Error de CORS en el navegador"* | La llamada web se hace fuera del proxy de Vite o del puerto correcto. | Acceder exclusivamente a través de `http://localhost:5173/zenit` o comprobar el proxy en `vite.config.ts`. |
+| *"No se pudo conectar con la API local de ZENIT"* | El servidor FastAPI de `zenit_api.py` no está corriendo en el puerto 8000. | Ejecutar desde `OpenJarvis/`: `python -m uvicorn zenit_api:app --host 127.0.0.1 --port 8000`. |
+| *"No se encontró el checkpoint TFT"* | No se ha ejecutado el entrenamiento inicial de la red. | Correr desde `OpenJarvis/`: `python -m modelo.entrenar_tft` para generar `modelo/zenith_tft.ckpt`. |
+| *"Fallo en prueba de coincidencia CSV/SQLite"* | La base de datos `data/zenith.db` no existe o está desincronizada. | Regenerar el dataset ejecutando desde `OpenJarvis/`: `python data\generar_datos.py`. |
+| *"ModuleNotFoundError: No module named 'openjarvis'" en pytest* | Pytest cargó `tests/conftest.py` heredado de OpenJarvis. | Ejecutar `python -m pytest -q --noconftest tests\zenit`. |
+| *"La ejecución de scripts está deshabilitada"* en PowerShell | Política de ejecución de Windows bloquea `npm.ps1` / `Activate.ps1`. | Ejecutar `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` o usar `npm.cmd`. |
+| *"Error de CORS en el navegador"* | La llamada web se hace fuera del proxy de Vite o del puerto correcto. | Acceder exclusivamente a través de `http://localhost:5173/zenit` y comprobar `vite.config.ts`. |

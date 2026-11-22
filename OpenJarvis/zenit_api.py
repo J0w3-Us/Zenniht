@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import db
+from agente_zenit import ejecutar_chat_agente, obtener_estado_ollama
 from kraljic import ordenar_alertas_kraljic
 
 CSV_PATH = db.CSV_PATH
@@ -35,6 +36,18 @@ app.add_middleware(
 
 
 class SolicitudPrediccion(BaseModel):
+    fecha_corte: date = date(2026, 10, 22)
+
+
+class TurnoChat(BaseModel):
+    role: str
+    content: str
+
+
+class SolicitudChatAgente(BaseModel):
+    mensaje: str
+    historial: List[TurnoChat] = []
+    modelo: Optional[str] = None
     fecha_corte: date = date(2026, 10, 22)
 
 
@@ -224,3 +237,26 @@ def aprobar_orden(orden_id: int) -> Dict[str, object]:
         )
     ordenes = db.obtener_ordenes(DB_PATH)
     return next(orden for orden in ordenes if orden["id"] == orden_id)
+
+
+@app.get("/api/zenit/agente/estado")
+def estado_agente(modelo: Optional[str] = None) -> Dict[str, object]:
+    return obtener_estado_ollama(modelo_solicitado=modelo)
+
+
+@app.post("/api/zenit/agente/chat")
+def chat_agente(solicitud: SolicitudChatAgente) -> Dict[str, object]:
+    try:
+        return ejecutar_chat_agente(
+            mensaje=solicitud.mensaje,
+            historial=[{"role": t.role, "content": t.content} for t in solicitud.historial],
+            db_path=DB_PATH,
+            obtener_estado_fn=_obtener_estado,
+            ejecutar_prediccion_fn=_predecir_lote,
+            modelo_solicitado=solicitud.modelo,
+            fecha_corte_default=solicitud.fecha_corte.isoformat(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

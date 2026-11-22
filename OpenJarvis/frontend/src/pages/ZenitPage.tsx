@@ -3,15 +3,22 @@ import { isTauri } from '@tauri-apps/api/core';
 import {
   AlertTriangle,
   Database,
-  LayoutDashboard,
+  MessageSquare,
   PackageSearch,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Plus,
   ShoppingBasket,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { ZenitOverviewPage } from '../components/Zenit/ZenitOverviewPage';
+import {
+  ZenitChatWorkspace,
+  type ZenitChatMessage,
+} from '../components/Zenit/ZenitChatWorkspace';
 import { ZenitProductSearch } from '../components/Zenit/ZenitProductSearch';
 import { ZenitSuggestionsPage } from '../components/Zenit/ZenitSuggestionsPage';
-import { ZenitLocalCopilot } from '../components/Zenit/ZenitLocalCopilot';
+import { ZenitToasts, type ZenitToastItem } from '../components/Zenit/ZenitToasts';
 import { InventoryTable } from '../components/Zenit/InventoryTable';
 import { paginateItems, ZenitPagination } from '../components/Zenit/ZenitPagination';
 import {
@@ -20,26 +27,46 @@ import {
 } from '../components/Zenit/zenit-product-filters';
 import {
   approveZenitOrder,
+  getZenitAgentStatus,
   getZenitStartupError,
   getZenitState,
   loadZenitCanonicalDataset,
-  predictZenitStock,
+  sendZenitAgentMessage,
   uploadZenitDataset,
+  type ZenitAgentStatus,
   type ZenitState,
 } from '../lib/zenit-api';
 import './ZenitPage.css';
 
 const FECHA_DEMO = '2026-10-22';
-type ZenitScreen = 'overview' | 'inventory' | 'suggestions';
+const CHAT_SESSIONS_KEY = 'zenit-chat-sessions-v1';
+type ZenitScreen = 'chat' | 'inventory' | 'suggestions';
+
+interface ZenitChatSession {
+  id: string;
+  title: string;
+  messages: ZenitChatMessage[];
+}
+
+function loadStoredSessions(): ZenitChatSession[] {
+  try {
+    const raw = window.localStorage.getItem(CHAT_SESSIONS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? (parsed as ZenitChatSession[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 const SCREEN_COPY: Record<ZenitScreen, { title: string; description: string }> = {
-  overview: {
-    title: 'Dashboard',
-    description: 'Existencias registradas y alertas de desabasto a siete días.',
+  chat: {
+    title: 'Asistente de inventario',
+    description: 'Consulta existencias, predicciones de desabasto y sugerencias de reabasto.',
   },
   inventory: {
     title: 'Inventario',
-    description: 'Revisa productos, alertas y prioridad de atención.',
+    description: 'Revisa los 50 productos, alertas de desabasto y prioridad Kraljic.',
   },
   suggestions: {
     title: 'Sugerencias',
@@ -70,34 +97,207 @@ export function ZenitPage() {
   const [dateCutoff, setDateCutoff] = useState(FECHA_DEMO);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [predicting, setPredicting] = useState(false);
   const [approvingOrderId, setApprovingOrderId] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ZenitToastItem[]>([]);
   const [productFilter, setProductFilter] = useState<ZenitProductFilter>('all');
   const [sortByRisk, setSortByRisk] = useState(false);
   const [selectedProductName, setSelectedProductName] = useState<string | null>(null);
-  const [activeScreen, setActiveScreen] = useState<ZenitScreen>('overview');
+  const [activeScreen, setActiveScreen] = useState<ZenitScreen>('chat');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [inventoryPage, setInventoryPage] = useState(1);
   const [suggestionsPage, setSuggestionsPage] = useState(1);
-  const [alertsPage, setAlertsPage] = useState(1);
+  const [agentStatus, setAgentStatus] = useState<ZenitAgentStatus | null>(null);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [sendingChat, setSendingChat] = useState(false);
+  const [sessions, setSessions] = useState<ZenitChatSession[]>(() => loadStoredSessions());
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() => {
+    const initial = loadStoredSessions();
+    return initial[0]?.id ?? null;
+  });
+  const nextChatId = useRef(Date.now());
+  const nextToastId = useRef(1);
+
+  const activeSession = useMemo(
+    () => sessions.find((s) => s.id === activeSessionId) ?? null,
+    [sessions, activeSessionId],
+  );
+  const chatMessages = activeSession?.messages ?? [];
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CHAT_SESSIONS_KEY, JSON.stringify(sessions));
+    } catch {
+      // Ignore storage quota errors.
+    }
+  }, [sessions]);
+
+  const pushToast = useCallback(
+    (
+      message: string,
+      tone: 'error' | 'warning' = 'error',
+      action?: { label: string; onAction: () => void },
+    ) => {
+      const id = nextToastId.current++;
+      setToasts((current) => [
+        ...current.filter((item) => item.message !== message),
+        {
+          id,
+          message,
+          tone,
+          actionLabel: action?.label,
+          onAction: action?.onAction,
+        },
+      ]);
+    },
+    [],
+  );
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((current) => current.filter((item) => item.id !== id));
+  }, []);
+
+  const refreshAgentStatus = useCallback(
+    async (model?: string) => {
+      try {
+        const status = await getZenitAgentStatus(model);
+        setAgentStatus(status);
+        if (status.modelo_activo) {
+          setSelectedModel((current) => current || status.modelo_activo || '');
+        } else {
+          pushToast(
+            status.detalle || 'El asistente local no tiene un modelo listo en Ollama.',
+            'warning',
+          );
+        }
+      } catch {
+        setAgentStatus({
+          ollama_disponible: false,
+          url: 'http://127.0.0.1:11434',
+          modelos: [],
+          modelo_activo: null,
+          detalle: 'No se pudo conectar con el servicio del asistente.',
+        });
+        pushToast('No se pudo verificar la conexión con el asistente local.', 'warning');
+      }
+    },
+    [pushToast],
+  );
 
   const refreshState = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const startupError = await getZenitStartupError();
       if (startupError) throw new Error(startupError);
-      setState(await getZenitState());
+      let currentState = await getZenitState();
+      if (!currentState.datos_cargados) {
+        await loadZenitCanonicalDataset();
+        currentState = await getZenitState();
+      }
+      setState(currentState);
     } catch (requestError) {
-      setError(getErrorMessage(requestError));
+      pushToast(getErrorMessage(requestError), 'error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pushToast]);
 
   useEffect(() => {
     void refreshState();
-  }, [refreshState]);
+    void refreshAgentStatus();
+  }, [refreshState, refreshAgentStatus]);
+
+  const handleSendChat = async (messageText: string) => {
+    const userMessage: ZenitChatMessage = {
+      id: nextChatId.current++,
+      role: 'user',
+      content: messageText,
+    };
+    const historyPayload = chatMessages.map((msg) => ({
+      role: msg.role,
+      content: msg.content,
+    }));
+
+    const sessionId = activeSessionId ?? `chat-${Date.now()}`;
+    const shortTitle = messageText.length > 34 ? `${messageText.slice(0, 34)}…` : messageText;
+
+    setActiveSessionId(sessionId);
+    setSessions((current) => {
+      const exists = current.some((s) => s.id === sessionId);
+      if (!exists) {
+        return [{ id: sessionId, title: shortTitle, messages: [userMessage] }, ...current];
+      }
+      return current.map((s) =>
+        s.id === sessionId ? { ...s, messages: [...s.messages, userMessage] } : s,
+      );
+    });
+    setSendingChat(true);
+
+    try {
+      const reply = await sendZenitAgentMessage({
+        mensaje: messageText,
+        historial: historyPayload,
+        modelo: selectedModel || agentStatus?.modelo_activo || undefined,
+        fecha_corte: dateCutoff,
+      });
+      if (reply.estado_actualizado) {
+        setState(reply.estado_actualizado);
+      }
+      const assistantMessage: ZenitChatMessage = {
+        id: nextChatId.current++,
+        role: 'assistant',
+        content: reply.respuesta,
+        model: reply.modelo,
+        sources: reply.fuentes,
+        tools: reply.herramientas_usadas,
+        alerts: reply.alertas.length > 0 && reply.herramientas_usadas.some(
+          (t) => (
+            t.nombre === 'ejecutar_prediccion_tft'
+            || t.nombre === 'consultar_resumen_inventario'
+            || t.nombre === 'listar_productos_por_filtro'
+          ),
+        )
+          ? reply.alertas
+          : undefined,
+        pendingOrders: reply.ordenes_pendientes.length > 0 && reply.herramientas_usadas.some(
+          (t) => t.nombre === 'consultar_sugerencias_pendientes',
+        )
+          ? reply.ordenes_pendientes
+          : undefined,
+      };
+      setSessions((current) =>
+        current.map((s) =>
+          s.id === sessionId ? { ...s, messages: [...s.messages, assistantMessage] } : s,
+        ),
+      );
+    } catch (requestError) {
+      pushToast(getErrorMessage(requestError), 'error', {
+        label: 'Reintentar',
+        onAction: () => void refreshAgentStatus(selectedModel || undefined),
+      });
+    } finally {
+      setSendingChat(false);
+    }
+  };
+
+  const handleNewChat = () => {
+    setActiveSessionId(null);
+    setActiveScreen('chat');
+  };
+
+  const handleSelectSession = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+    setActiveScreen('chat');
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    setSessions((current) => {
+      const remaining = current.filter((s) => s.id !== sessionId);
+      if (activeSessionId === sessionId) {
+        setActiveSessionId(remaining[0]?.id ?? null);
+      }
+      return remaining;
+    });
+  };
 
   useEffect(() => {
     contentElement.current?.scrollTo({ top: 0 });
@@ -106,7 +306,6 @@ export function ZenitPage() {
   const handleUpload = async (file?: File) => {
     if (!file) return;
     setUploading(true);
-    setError(null);
     try {
       await uploadZenitDataset(file);
       setState(await getZenitState());
@@ -115,9 +314,8 @@ export function ZenitPage() {
       setSelectedProductName(null);
       setInventoryPage(1);
       setSuggestionsPage(1);
-      setAlertsPage(1);
     } catch (requestError) {
-      setError(getErrorMessage(requestError));
+      pushToast(getErrorMessage(requestError), 'error');
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = '';
@@ -131,7 +329,6 @@ export function ZenitPage() {
     }
 
     setUploading(true);
-    setError(null);
     try {
       await loadZenitCanonicalDataset();
       setState(await getZenitState());
@@ -140,45 +337,20 @@ export function ZenitPage() {
       setSelectedProductName(null);
       setInventoryPage(1);
       setSuggestionsPage(1);
-      setAlertsPage(1);
     } catch (requestError) {
-      setError(getErrorMessage(requestError));
+      pushToast(getErrorMessage(requestError), 'error');
     } finally {
       setUploading(false);
     }
   };
 
-  const handlePredict = async () => {
-    setPredicting(true);
-    setAlertsPage(1);
-    setError(null);
-    setState((current) => current && ({
-      ...current,
-      inferencia: null,
-      productos: current.productos.map((product) => ({
-        ...product,
-        probabilidad: null,
-        en_desabasto: null,
-        orden: null,
-      })),
-    }));
-    try {
-      setState(await predictZenitStock(dateCutoff));
-    } catch (requestError) {
-      setError(getErrorMessage(requestError));
-    } finally {
-      setPredicting(false);
-    }
-  };
-
   const handleApprove = async (orderId: number) => {
     setApprovingOrderId(orderId);
-    setError(null);
     try {
       await approveZenitOrder(orderId);
       setState(await getZenitState());
     } catch (requestError) {
-      setError(getErrorMessage(requestError));
+      pushToast(getErrorMessage(requestError), 'error');
     } finally {
       setApprovingOrderId(null);
     }
@@ -236,7 +408,7 @@ export function ZenitPage() {
       <a className="zenit-skip-link" href="#zenit-main-content">
         Saltar al contenido principal
       </a>
-      <div className="zenit-shell">
+      <div className={`zenit-shell${sidebarOpen ? '' : ' is-sidebar-collapsed'}`}>
         <input
           ref={fileInput}
           id="zenit-csv"
@@ -246,118 +418,157 @@ export function ZenitPage() {
           aria-hidden="true"
           tabIndex={-1}
           onChange={(event) => void handleUpload(event.currentTarget.files?.[0])}
-          disabled={uploading || predicting}
+          disabled={uploading}
         />
-        <aside className="zenit-sidebar" aria-label="Navegación principal">
-          <div className="zenit-brand" aria-label="ZENIT para La Esperanza">
-            <span className="zenit-brand-mark"><Database aria-hidden="true" size={18} /></span>
-            <span className="zenit-brand-copy">
-              <strong>ZENIT</strong>
-              <span>La Esperanza</span>
-            </span>
+        <aside
+          className="zenit-sidebar"
+          aria-label="Navegación principal"
+          aria-hidden={!sidebarOpen}
+        >
+          <div className="zenit-brand-row">
+            <div className="zenit-brand" aria-label="ZENIT para La Esperanza">
+              <span className="zenit-brand-mark"><Database aria-hidden="true" size={18} /></span>
+              <span className="zenit-brand-copy">
+                <strong>ZENIT</strong>
+                <span>La Esperanza</span>
+              </span>
+            </div>
+            <button
+              type="button"
+              className="zenit-sidebar-toggle"
+              aria-label="Cerrar barra lateral"
+              title="Ocultar barra lateral"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <PanelLeftClose aria-hidden="true" size={17} />
+            </button>
           </div>
           <nav className="zenit-nav" aria-label="Pantallas">
-            <p className="zenit-nav-label">Análisis</p>
             <button
               type="button"
-              className="zenit-nav-link"
-              aria-current={activeScreen === 'overview' ? 'page' : undefined}
-              onClick={() => setActiveScreen('overview')}
+              className="zenit-new-chat-btn"
+              onClick={handleNewChat}
             >
-              <LayoutDashboard aria-hidden="true" size={17} />
-              Resumen
+              <Plus aria-hidden="true" size={16} />
+              Nueva consulta
             </button>
-            <button
-              type="button"
-              className="zenit-nav-link"
-              aria-current={activeScreen === 'inventory' ? 'page' : undefined}
-              onClick={() => setActiveScreen('inventory')}
-            >
-              <PackageSearch aria-hidden="true" size={17} />
-              Inventario
-            </button>
-            <button
-              type="button"
-              className="zenit-nav-link"
-              aria-current={activeScreen === 'suggestions' ? 'page' : undefined}
-              onClick={() => setActiveScreen('suggestions')}
-            >
-              <ShoppingBasket aria-hidden="true" size={17} />
-              Sugerencias
-            </button>
+
+            {sessions.length > 0 && (
+              <div className="zenit-chat-history">
+                <p className="zenit-nav-label">Conversaciones</p>
+                <ul className="zenit-chat-history-list">
+                  {sessions.map((session) => {
+                    const isActive = activeScreen === 'chat' && activeSessionId === session.id;
+                    return (
+                      <li key={session.id} className={`zenit-chat-history-item${isActive ? ' is-active' : ''}`}>
+                        <button
+                          type="button"
+                          className="zenit-chat-history-btn"
+                          onClick={() => handleSelectSession(session.id)}
+                          title={session.title}
+                        >
+                          <MessageSquare aria-hidden="true" size={14} />
+                          <span>{session.title}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="zenit-chat-history-delete"
+                          aria-label={`Eliminar conversación ${session.title}`}
+                          onClick={() => handleDeleteSession(session.id)}
+                        >
+                          <Trash2 aria-hidden="true" size={13} />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            <div className="zenit-nav-section">
+              <p className="zenit-nav-label">Menú</p>
+              <button
+                type="button"
+                className="zenit-nav-link"
+                aria-current={activeScreen === 'chat' ? 'page' : undefined}
+                onClick={() => setActiveScreen('chat')}
+              >
+                <MessageSquare aria-hidden="true" size={17} />
+                Agente ZENIT
+              </button>
+              <button
+                type="button"
+                className="zenit-nav-link"
+                aria-current={activeScreen === 'inventory' ? 'page' : undefined}
+                onClick={() => setActiveScreen('inventory')}
+              >
+                <PackageSearch aria-hidden="true" size={17} />
+                Inventario (50)
+              </button>
+              <button
+                type="button"
+                className="zenit-nav-link"
+                aria-current={activeScreen === 'suggestions' ? 'page' : undefined}
+                onClick={() => setActiveScreen('suggestions')}
+              >
+                <ShoppingBasket aria-hidden="true" size={17} />
+                Sugerencias
+                {products.filter((p) => p.orden?.estado === 'pendiente').length > 0 && (
+                  <span className="zenit-nav-badge">
+                    {products.filter((p) => p.orden?.estado === 'pendiente').length}
+                  </span>
+                )}
+              </button>
+            </div>
           </nav>
-          <div className="zenit-sidebar-foot">
-            <p>Predicción TFT local · CPU</p>
-          </div>
         </aside>
 
         <div className="zenit-main">
           <header className="zenit-header">
-            <div className="zenit-header-copy">
-              <p className="zenit-eyebrow">LA ESPERANZA · OPERACIÓN LOCAL</p>
-              <h1 className="zenit-title">{SCREEN_COPY[activeScreen].title}</h1>
-              <p className="zenit-lead">{SCREEN_COPY[activeScreen].description}</p>
-            </div>
-            <div className="zenit-header-actions">
-              {activeScreen === 'overview' && (
-                <div className="zenit-header-date">
-                  <span>Fecha de corte</span>
-                  <strong>{dateCutoff}</strong>
-                </div>
+            <div className="zenit-header-left">
+              {!sidebarOpen && (
+                <button
+                  type="button"
+                  className="zenit-sidebar-toggle is-header"
+                  aria-label="Abrir barra lateral"
+                  title="Mostrar barra lateral"
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <PanelLeftOpen aria-hidden="true" size={18} />
+                </button>
               )}
-              <div className={`zenit-model-status${hasPrediction ? ' is-ready' : ''}`}>
-                <span className="zenit-status-dot" />
-                {hasPrediction ? 'Inferencia TFT disponible' : 'TFT · CPU local'}
+              <div className="zenit-header-copy">
+                <h1 className="zenit-title">{SCREEN_COPY[activeScreen].title}</h1>
+                <p className="zenit-lead">{SCREEN_COPY[activeScreen].description}</p>
               </div>
             </div>
           </header>
 
           <div
             ref={contentElement}
-            className="zenit-content"
+            className={`zenit-content${activeScreen === 'chat' ? ' is-chat' : ''}`}
             id="zenit-main-content"
             tabIndex={-1}
           >
-            {error && (
-              <div className="zenit-error-banner" role="alert">
-                <AlertTriangle aria-hidden="true" size={18} />
-                <div>
-                  <p className="zenit-message-title">No se pudo completar la operación</p>
-                  <p>{error}</p>
-                </div>
-                {!state && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="zenit-secondary-action"
-                    onClick={() => void refreshState()}
-                  >
-                    Reintentar
-                  </Button>
-                )}
-              </div>
-            )}
+            <ZenitToasts toasts={toasts} onDismiss={dismissToast} />
 
-            {activeScreen === 'overview' && (
-              <ZenitOverviewPage
-                state={state}
-                loading={loading}
-                uploading={uploading}
-                predicting={predicting}
+            {activeScreen === 'chat' && (
+              <ZenitChatWorkspace
+                messages={chatMessages}
+                agentStatus={agentStatus}
+                selectedModel={selectedModel}
                 dateCutoff={dateCutoff}
+                sending={sendingChat}
+                approvingOrderId={approvingOrderId}
+                onSelectModel={setSelectedModel}
                 onDateCutoffChange={setDateCutoff}
-                onLoadDataset={() => void handleLoadDataset()}
-                onPredict={() => void handlePredict()}
-                onOpenInventory={() => handleFilterChange('all')}
+                onSendMessage={(msg) => void handleSendChat(msg)}
+                onApproveOrder={(orderId) => void handleApprove(orderId)}
+                onOpenInventoryAlerts={() => handleFilterChange('risk')}
                 onOpenSuggestions={() => {
                   setSuggestionsPage(1);
                   setActiveScreen('suggestions');
                 }}
-                onFilterProducts={handleFilterChange}
-                onProductSelect={handleProductSelect}
-                alertPage={alertsPage}
-                onAlertPageChange={setAlertsPage}
               />
             )}
 
@@ -389,8 +600,8 @@ export function ZenitPage() {
                       <h2 id="zenit-inventory-empty-title">Carga el dataset canónico</h2>
                       <p>El inventario aparece después de validar los 4,500 registros y los 50 productos.</p>
                     </div>
-                    <Button type="button" className="zenit-primary-action" onClick={() => setActiveScreen('overview')}>
-                      Ir al resumen
+                    <Button type="button" className="zenit-primary-action" onClick={() => void handleLoadDataset()}>
+                      Cargar dataset
                     </Button>
                   </section>
                 ) : (
@@ -428,7 +639,7 @@ export function ZenitPage() {
                     {!hasPrediction && (
                       <div className="zenit-prediction-note">
                         <AlertTriangle aria-hidden="true" size={17} />
-                        <span>Sin predicción TFT. Ejecuta el análisis desde Resumen para ver riesgos.</span>
+                        <span>Sin predicción TFT. Pídele al Agente ZENIT que ejecute la predicción para ver riesgos.</span>
                       </div>
                     )}
                     <p className="zenit-table-hint">Desliza la tabla horizontalmente para consultar todas las columnas.</p>
@@ -437,7 +648,7 @@ export function ZenitPage() {
                         products={paginatedProducts.items}
                         stockDate={state?.fecha_existencia ?? null}
                         approvingOrderId={approvingOrderId}
-                        actionsDisabled={uploading || predicting || loading}
+                        actionsDisabled={uploading || loading}
                         onApprove={(orderId) => void handleApprove(orderId)}
                       />
                     </div>
@@ -455,7 +666,7 @@ export function ZenitPage() {
             {activeScreen === 'suggestions' && (
               <ZenitSuggestionsPage
                 state={state}
-                busy={loading || uploading || predicting}
+                busy={loading || uploading}
                 approvingOrderId={approvingOrderId}
                 page={suggestionsPage}
                 onPageChange={setSuggestionsPage}
@@ -466,15 +677,6 @@ export function ZenitPage() {
         </div>
       </div>
     </main>
-    <ZenitLocalCopilot
-      state={state}
-      busy={loading || uploading || predicting || approvingOrderId !== null}
-      onLoadDataset={handleLoadDataset}
-      onPredict={handlePredict}
-      onOpenScreen={setActiveScreen}
-      onFilterChange={handleFilterChange}
-      onProductSelect={handleProductSelect}
-    />
     </>
   );
 }

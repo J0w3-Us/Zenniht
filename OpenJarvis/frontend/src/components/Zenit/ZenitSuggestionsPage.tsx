@@ -78,15 +78,12 @@ export function ZenitSuggestionsPage({
         )
       ) : (
         <>
-          <div
-            className={`zenit-suggestions-dataset${hasValidDataset ? ' is-valid' : ' is-invalid'}`}
-            role="status"
-          >
-            <span className="zenit-suggestions-dataset-indicator" aria-hidden="true" />
-            {hasValidDataset
-              ? 'Dataset validado: 4,500 filas y 50 productos.'
-              : 'Dataset no validado. Se requieren 4,500 filas y exactamente 50 productos.'}
-          </div>
+          {!hasValidDataset && (
+            <div className="zenit-suggestions-dataset is-invalid" role="status">
+              <span className="zenit-suggestions-dataset-indicator" aria-hidden="true" />
+              Dataset no validado. Se requieren 4,500 filas y exactamente 50 productos.
+            </div>
+          )}
 
           {hasValidDataset ? (
             <ZenitPendingOrders
