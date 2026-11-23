@@ -85,6 +85,32 @@ def init_db(db_path: Optional[Path] = None) -> None:
                 aprobado_en TIMESTAMP
             );
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS catalogo_precios (
+                producto TEXT PRIMARY KEY,
+                precio_compra_centavos INTEGER NOT NULL,
+                tasa_iva_pct REAL NOT NULL DEFAULT 16.0,
+                lote_minimo INTEGER NOT NULL DEFAULT 1,
+                banda_min_centavos INTEGER,
+                banda_max_centavos INTEGER,
+                vigencia_desde TEXT,
+                vigencia_hasta TEXT,
+                proveedor_id TEXT
+            );
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS presupuestos_historico (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fecha_corte TEXT NOT NULL,
+                techo_centavos INTEGER,
+                subtotal_centavos INTEGER NOT NULL,
+                iva_centavos INTEGER NOT NULL,
+                total_centavos INTEGER NOT NULL,
+                faltante_centavos INTEGER DEFAULT 0,
+                lineas_json TEXT NOT NULL,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
         columnas_ordenes = conn.execute("PRAGMA table_info(ordenes)").fetchall()
         cantidad = next(c for c in columnas_ordenes if c["name"] == "cantidad_sugerida")
         if cantidad["notnull"]:

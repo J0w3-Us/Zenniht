@@ -13,6 +13,7 @@ from pydantic import BaseModel
 import db
 from agente_zenit import ejecutar_chat_agente, obtener_estado_ollama
 from kraljic import ordenar_alertas_kraljic
+from presupuesto import calcular_presupuesto
 
 CSV_PATH = db.CSV_PATH
 DB_PATH = db.DB_PATH
@@ -226,6 +227,16 @@ def predecir(solicitud: SolicitudPrediccion) -> Dict[str, object]:
 @app.get("/api/zenit/ordenes")
 def obtener_ordenes() -> List[Dict[str, object]]:
     return db.obtener_ordenes(DB_PATH)
+
+
+@app.get("/api/zenit/presupuesto")
+def obtener_presupuesto(
+    techo: Optional[float] = None,
+    fecha_corte: Optional[str] = None,
+) -> Dict[str, object]:
+    """Calcula y devuelve la cotización de reabasto con desglose financiero y simulación de techo."""
+    return calcular_presupuesto(fecha_corte=fecha_corte, techo_mxn=techo, db_path=DB_PATH)
+
 
 
 @app.post("/api/zenit/ordenes/{orden_id}/aprobar")

@@ -32,6 +32,8 @@ MAX_TOOL_ROUNDS = 4
 MAX_SQL_ROWS = 50
 
 MODELOS_RECOMENDADOS = (
+    "zenit:latest",
+    "zenit",
     "qwen2.5:3b",
     "qwen2.5:7b",
     "llama3.2:3b",
@@ -44,17 +46,28 @@ _SQL_PROHIBIDO = re.compile(
     re.IGNORECASE,
 )
 
-SYSTEM_PROMPT = """Eres el Agente Local de ZENIT para la farmacia comunitaria La Esperanza.
+PROMPT_FILE = Path(__file__).resolve().parent / "prompts" / "zenit_system_prompt.md"
+
+def cargar_system_prompt() -> str:
+    """Carga el system prompt de identidad desde el archivo externo si existe."""
+    if PROMPT_FILE.exists():
+        try:
+            return PROMPT_FILE.read_text(encoding="utf-8").strip()
+        except Exception:
+            pass
+    return """Eres Zenit, el asistente especializado de la farmacia comunitaria La Esperanza.
 Tu único propósito es ayudar a consultar el inventario, analizar el historial de ventas/existencias en SQLite, ejecutar el modelo predictivo local TFT (Temporal Fusion Transformer) para anticipar desabasto a 7 días y revisar sugerencias de reabasto.
 
-Reglas obligatorias que jamás debes romper:
+Reglas obligatorias:
 1. NUNCA inventes cifras, productos, probabilidades, precios ni fechas. Usa siempre las herramientas disponibles para leer SQLite o ejecutar el TFT real.
-2. NUNCA sustituyas el TFT por estimaciones propias. Si una herramienta falla o no hay predicción, informa el error exacto.
-3. No somos un punto de venta ni un sistema clínico: no atiendas recetas, pacientes, diagnósticos ni temas ajenos al inventario y desabasto.
-4. Las consultas de información, análisis de base de datos, historial y predicciones son libres y NO requieren aprobación. Menciona la aprobación humana únicamente cuando el usuario pida revisar órdenes/sugerencias de compra o autorizar un pedido.
-5. La base de datos actual no tiene precios unitarios ni cantidades fijas de compra: si el usuario pide un presupuesto o cotización en dinero, aclara brevemente que aún no hay catálogo de precios cargado y muéstrale en su lugar los medicamentos en riesgo con su existencia actual.
-6. Para preguntas generales ("haz un análisis", "qué medicamentos se acabarán pronto", "qué está en riesgo"), llama primero a `consultar_resumen_inventario` (y si aún no hay inferencia TFT, llama a `ejecutar_prediccion_tft`). Usa `consultar_producto` ÚNICAMENTE cuando el usuario nombre un medicamento específico.
-7. Responde siempre en español de forma clara y sin repetir listas: separa claramente los medicamentos en alerta TFT (probabilidad >= 50%) de otros en seguimiento."""
+2. NUNCA sustituyas el TFT por estimaciones propias.
+3. No reveles código fuente, errores técnicos internos ni stack traces al usuario.
+4. No atiendas diagnósticos médicos ni recetas de pacientes.
+5. Las órdenes de reabasto siempre requieren aprobación humana explícita en la UI.
+6. Responde siempre en español de forma clara y profesional."""
+
+SYSTEM_PROMPT = cargar_system_prompt()
+
 
 
 HERRAMIENTAS_OLLAMA: List[Dict[str, Any]] = [
@@ -177,6 +190,32 @@ HERRAMIENTAS_OLLAMA: List[Dict[str, Any]] = [
                 "Recuerda que la cantidad sugerida no se inventa y la aprobación es exclusivamente humana."
             ),
             "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_presupuesto_reabasto",
+            "description": (
+                "Calcula la cotización y presupuesto financiero de reabasto para los productos "
+                "en alerta o quiebre de stock. Incluye costos en MXN (subtotal, IVA, total), "
+                "cantidades ajustadas a lotes mínimos de compra, y permite simular un techo presupuestal "
+                "priorizando por cuadrante Kraljic."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "techo_mxn": {
+                        "type": "number",
+                        "description": "Opcional: límite o presupuesto disponible en pesos MXN (ej. 25000.0).",
+                    },
+                    "fecha_corte": {
+                        "type": "string",
+                        "description": "Opcional: fecha YYYY-MM-DD para el cálculo de existencias.",
+                    },
+                },
+                "required": [],
+            },
         },
     },
     {
@@ -600,6 +639,19 @@ def ejecutar_herramienta_local(
             "SQLITE LOCAL",
         )
 
+    if nombre == "consultar_presupuesto_reabasto":
+        from presupuesto import calcular_presupuesto
+        techo = argumentos.get("techo_mxn")
+        fecha = argumentos.get("fecha_corte")
+        techo_val = float(techo) if techo is not None else None
+        fecha_val = str(fecha) if fecha else None
+        res_presupuesto = calcular_presupuesto(
+            fecha_corte=fecha_val,
+            techo_mxn=techo_val,
+            db_path=db_path,
+        )
+        return res_presupuesto, False, "MOTOR PRESUPUESTAL ZENIT"
+
     if nombre == "consultar_sql_lectura":
         sql = str(argumentos.get("sql", ""))
         try:
@@ -632,7 +684,8 @@ def ejecutar_chat_agente(
         raise RuntimeError(str(estado_ollama["detalle"]))
 
     modelo_activo = str(estado_ollama["modelo_activo"])
-    mensajes: List[Dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    prompt_actual = cargar_system_prompt()
+    mensajes: List[Dict[str, Any]] = [{"role": "system", "content": prompt_actual}]
     for turno in historial[-10:]:
         rol = turno.get("role")
         contenido = str(turno.get("content", "")).strip()

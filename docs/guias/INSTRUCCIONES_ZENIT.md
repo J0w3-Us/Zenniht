@@ -53,11 +53,27 @@ Genera el archivo `data/ventas.csv` y la base de datos `data/zenith.db` con semi
 python data\generar_datos.py
 ```
 
-### Paso 2: Entrenar el Modelo Predictivo (TFT)
-Entrena el modelo Temporal Fusion Transformer en CPU local con los primeros 63 días (genera el checkpoint `modelo/zenith_tft.ckpt`):
+### Paso 2: Entrenar y Configurar Modelos (TFT y LLM Ollama)
+El script de entrenamiento soporta tanto el modelo predictivo de series temporales como la configuración del modelo conversacional con el prompt externo:
+
 ```powershell
-python -m modelo.entrenar_tft
+# A) Entrenar Temporal Fusion Transformer (TFT)
+python -m modelo.entrenar_tft tft --epochs 45 --hidden-size 16 --evaluar
+
+# B) Acondicionar modelo local en Ollama con el prompt oficial de Zenit
+python -m modelo.entrenar_tft ollama --base qwen2.5:3b --nombre zenit
+
+# C) Modo directo compatible por defecto
+python -m modelo.entrenar_tft --epochs 45 --evaluar
 ```
+
+> **Selección Automática de IA:**  
+> Cuando el usuario no especifica un modelo, el backend detecta automáticamente los modelos disponibles en Ollama (`http://127.0.0.1:11434`) y selecciona el óptimo según esta prioridad:
+> 1. Modelo solicitado explícitamente en el chat (si está instalado).
+> 2. Variable de entorno `ZENIT_OLLAMA_MODEL` (si está definida).
+> 3. Modelo personalizado `zenit` (generado por `entrenar_tft.py ollama`).
+> 4. Modelos recomendados: `qwen2.5:3b` > `qwen2.5:7b` > `llama3.2:3b` > `llama3.1:8b` > `mistral:7b`.
+> 5. Si ninguno coincide, selecciona automáticamente el primer modelo disponible en Ollama.
 
 ### Paso 3: Ejecutar la Suite de Pruebas Automatizadas
 Verifica el universo cerrado, SQLite, el modelo TFT y la API local:
