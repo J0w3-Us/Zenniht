@@ -36,6 +36,51 @@ app.add_middleware(
 )
 
 
+class SolicitudAprobacion(BaseModel):
+    cantidad: Optional[int] = None
+    usuario: str = "encargado_farmacia"
+
+
+class SolicitudDescarte(BaseModel):
+    motivo: str
+    usuario: str = "encargado_farmacia"
+
+
+class SolicitudPosponer(BaseModel):
+    fecha_hasta: str
+    usuario: str = "encargado_farmacia"
+
+
+class SolicitudEmision(BaseModel):
+    proveedor_id: Optional[str] = None
+    usuario: str = "encargado_farmacia"
+
+
+class SolicitudRecepcion(BaseModel):
+    cantidad_recibida: int
+    usuario: str = "almacenista_farmacia"
+
+
+class SolicitudRecepcionMercancia(BaseModel):
+    producto: str
+    lote_id: str
+    cantidad_recibida: int
+    fecha_caducidad: str
+    orden_id: Optional[int] = None
+    temperatura_recepcion: Optional[float] = None
+    ubicacion: Optional[str] = None
+    comprobante_remision: Optional[str] = None
+    sha256_remision: Optional[str] = None
+    recibido_por: str = "almacenista_farmacia"
+
+
+class SolicitudLecturaFrio(BaseModel):
+    equipo_id: str
+    temperatura: float
+    registrado_por: str = "operador_frio"
+    fecha_hora: Optional[str] = None
+
+
 class SolicitudPrediccion(BaseModel):
     fecha_corte: date = date(2026, 10, 22)
 
@@ -239,15 +284,119 @@ def obtener_presupuesto(
 
 
 
+@app.get("/api/zenit/proveedores")
+def obtener_proveedores() -> List[Dict[str, object]]:
+    """Devuelve el catálogo de proveedores verificados."""
+    return db.obtener_proveedores(DB_PATH)
+
+
 @app.post("/api/zenit/ordenes/{orden_id}/aprobar")
-def aprobar_orden(orden_id: int) -> Dict[str, object]:
-    if not db.aprobar_orden(orden_id, DB_PATH):
+def aprobar_orden(orden_id: int, solicitud: Optional[SolicitudAprobacion] = None) -> Dict[str, object]:
+    cant = solicitud.cantidad if solicitud else None
+    usr = solicitud.usuario if solicitud else "encargado_farmacia"
+    if not db.aprobar_orden(orden_id, DB_PATH, cantidad=cant, usuario=usr):
         raise HTTPException(
             status_code=409,
             detail="La orden no existe o ya no está pendiente de aprobación.",
         )
     ordenes = db.obtener_ordenes(DB_PATH)
     return next(orden for orden in ordenes if orden["id"] == orden_id)
+
+
+@app.post("/api/zenit/ordenes/{orden_id}/descartar")
+def descartar_orden(orden_id: int, solicitud: SolicitudDescarte) -> Dict[str, object]:
+    try:
+        exito = db.descartar_orden(orden_id, motivo=solicitud.motivo, db_path=DB_PATH, usuario=solicitud.usuario)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if not exito:
+        raise HTTPException(status_code=409, detail="La orden no existe o no está en estado pendiente para ser descartada.")
+    ordenes = db.obtener_ordenes(DB_PATH)
+    return next(orden for orden in ordenes if orden["id"] == orden_id)
+
+
+@app.post("/api/zenit/ordenes/{orden_id}/posponer")
+def posponer_orden(orden_id: int, solicitud: SolicitudPosponer) -> Dict[str, object]:
+    try:
+        exito = db.posponer_orden(orden_id, fecha_hasta=solicitud.fecha_hasta, db_path=DB_PATH, usuario=solicitud.usuario)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    if not exito:
+        raise HTTPException(status_code=409, detail="La orden no existe o no está en estado pendiente para ser pospuesta.")
+    ordenes = db.obtener_ordenes(DB_PATH)
+    return next(orden for orden in ordenes if orden["id"] == orden_id)
+
+
+@app.post("/api/zenit/ordenes/{orden_id}/emitir")
+def emitir_orden(orden_id: int, solicitud: Optional[SolicitudEmision] = None) -> Dict[str, object]:
+    prov = solicitud.proveedor_id if solicitud else None
+    usr = solicitud.usuario if solicitud else "encargado_farmacia"
+    try:
+        return db.emitir_orden(orden_id, proveedor_id=prov, db_path=DB_PATH, usuario=usr)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/api/zenit/recepciones")
+def crear_recepcion_mercancia(solicitud: SolicitudRecepcionMercancia) -> Dict[str, object]:
+    """Registra físicamente una recepción, actualiza stock de lotes y vigila cadena de frío."""
+    try:
+        return db.registrar_recepcion_mercancia(
+            orden_id=solicitud.orden_id,
+            producto=solicitud.producto,
+            lote_id=solicitud.lote_id,
+            cantidad_recibida=solicitud.cantidad_recibida,
+            fecha_caducidad=solicitud.fecha_caducidad,
+            temperatura_recepcion=solicitud.temperatura_recepcion,
+            ubicacion=solicitud.ubicacion,
+            comprobante_remision=solicitud.comprobante_remision,
+            sha256_remision=solicitud.sha256_remision,
+            recibido_por=solicitud.recibido_por,
+            db_path=DB_PATH,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/api/zenit/caducidades")
+def listar_alertas_caducidad(
+    dias: int = 90,
+    fecha_referencia: Optional[str] = None,
+) -> List[Dict[str, object]]:
+    """Devuelve lotes en almacén ordenados por vencimiento (FEFO) para prevención de merma."""
+    return db.obtener_alertas_caducidad(dias_limite=dias, fecha_referencia=fecha_referencia, db_path=DB_PATH)
+
+
+@app.post("/api/zenit/frio/lecturas")
+def registrar_lectura_frio(solicitud: SolicitudLecturaFrio) -> Dict[str, object]:
+    """Registra lecturas térmicas en refrigeradores con detección de excursión (2°C - 8°C)."""
+    return db.registrar_lectura_frio(
+        equipo_id=solicitud.equipo_id,
+        temperatura=solicitud.temperatura,
+        registrado_por=solicitud.registrado_por,
+        fecha_hora=solicitud.fecha_hora,
+        db_path=DB_PATH,
+    )
+
+
+@app.get("/api/zenit/frio/lecturas")
+def listar_lecturas_frio(
+    equipo_id: Optional[str] = None,
+    limite: int = 20,
+) -> List[Dict[str, object]]:
+    """Consulta el historial de temperaturas registradas en equipos de refrigeración."""
+    return db.obtener_lecturas_frio_recientes(equipo_id=equipo_id, limite=limite, db_path=DB_PATH)
+
+
+@app.post("/api/zenit/ordenes/{orden_id}/recibir")
+def recibir_orden(orden_id: int, solicitud: SolicitudRecepcion) -> Dict[str, object]:
+    try:
+        return db.recibir_orden(orden_id, cantidad_recibida=solicitud.cantidad_recibida, db_path=DB_PATH, usuario=solicitud.usuario)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
 
 
 @app.get("/api/zenit/agente/estado")

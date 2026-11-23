@@ -76,11 +76,11 @@ python -m modelo.entrenar_tft --epochs 45 --evaluar
 > 5. Si ninguno coincide, selecciona automáticamente el primer modelo disponible en Ollama.
 
 ### Paso 3: Ejecutar la Suite de Pruebas Automatizadas
-Verifica el universo cerrado, SQLite, el modelo TFT y la API local:
+Verifica el universo cerrado, SQLite, el catálogo de precios, el motor de presupuestos, el modelo TFT y la API local:
 ```powershell
 python -m pytest -q --noconftest tests\zenit
 ```
-*(Se usa `--noconftest` para evitar cargar `tests/conftest.py` heredado de OpenJarvis, que requiere dependencias externas no usadas por ZENIT.)*
+*(Se usa `--noconftest` para evitar cargar `tests/conftest.py` heredado de OpenJarvis. La suite incluye validación de las 42 pruebas: universos canónicos, motor de demanda sin sesgo de quiebre, cálculo en centavos enteros con IVA, techos presupuestales y endpoints).*
 
 Para medir el tiempo de inferencia en CPU (30 lotes de 50 productos + calentamiento):
 ```powershell
@@ -94,6 +94,11 @@ python -m uvicorn zenit_api:app --host 127.0.0.1 --port 8000
 ```
 > Endpoints clave disponibles:
 > - `GET /api/zenit/estado` - Devuelve existencias del último corte y alertas activas.
+> - `POST /api/zenit/predecir` - Dispara la inferencia TFT en CPU para una fecha de corte (`2026-10-22`).
+> - `GET /api/zenit/presupuesto?techo=...&fecha_corte=...` - Calcula cotizaciones y presupuesto de reabasto con desglose financiero (Subtotal, IVA, Total en centavos/MXN) y simulación de techo semanal por cuadrante Kraljic.
+> - `GET /api/zenit/ordenes` - Lista de órdenes pendientes y aprobadas.
+> - `POST /api/zenit/ordenes/{id}/aprobar` - Aprobación humana de una orden.
+> - `POST /api/zenit/agente/chat` - Copiloto local con herramientas conectadas (inventario, TFT, SQL y presupuestos).
 > - `POST /api/zenit/cargar` / `POST /api/zenit/cargar-local` - Valida y carga el CSV canónico en SQLite.
 > - `POST /api/zenit/predecir` - Ejecuta la inferencia TFT para una fecha de corte dada.
 > - `POST /api/zenit/ordenes/{id}/aprobar` - Aprueba manualmente una orden sugerida.

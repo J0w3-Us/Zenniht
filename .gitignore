@@ -12,3 +12,5 @@ OpenJarvis/src/openjarvis/zenit/data/zenith.db
 OpenJarvis/frontend/node_modules/
 OpenJarvis/frontend/dist/
 mcp.json
+reports.md
+docs/
