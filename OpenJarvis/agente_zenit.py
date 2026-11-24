@@ -114,7 +114,7 @@ HERRAMIENTAS_OLLAMA: List[Dict[str, Any]] = [
         "function": {
             "name": "consultar_historial_ventas",
             "description": (
-                "Consulta los registros diarios recientes (fecha, unidades_vendidas, existencia, temperatura) "
+                "Consulta los registros diarios recientes (fecha, unidades_vendidas y existencia) "
                 "de un producto o el historial agregado de toda la farmacia si no se indica producto."
             ),
             "parameters": {

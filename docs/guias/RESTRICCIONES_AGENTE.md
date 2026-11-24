@@ -67,7 +67,8 @@ continúan siendo acciones manuales en la interfaz.
 e inglés, caracteres invisibles, temas generales, consultas clínicas,
 extracción del prompt, historial falsificado, texto malicioso generado por
 el modelo, herramientas y argumentos no permitidos, errores internos y
-cotizaciones válidas. La suite completa de ZENIT pasa 65 pruebas.
+cotizaciones válidas. La suite completa de ZENIT pasa 81 pruebas, incluidas las
+consultas de historial y ordenación contrastadas con SQLite.
 
 La frontera protege el chat servido por la API de Zenit. No cambia las
 capacidades del modelo base cuando se usa directamente desde otra aplicación
