@@ -11,6 +11,26 @@ identidad y ayuda tienen respuestas controladas. No proporciona código,
 SQL, scripts, instrucciones internas, asesoramiento clínico ni respuestas
 generales de temas ajenos.
 
+Las restricciones limitan el dominio, no reducen todas las respuestas a
+desabasto. Las consultas explícitas de historial y ordenación se resuelven con
+herramientas locales tipadas, incluso si Ollama no está disponible:
+
+- «Dame los 5 productos que tenemos en mayor cantidad»: orden descendente de
+  existencias al último corte, sin filtrar alertas ni mostrar tarjetas de riesgo.
+- «Productos con menos existencias»: orden ascendente.
+- «Los 3 productos más vendidos en los últimos 7 días»: suma ventas del periodo,
+  no ordena por existencias.
+- «Historial de Insulina glargina de los últimos 7 días»: ventas y existencias
+  diarias en orden cronológico.
+- «Historial general»: totales diarios de la farmacia; sin producto ficticio.
+- «Todo el historial de Paracetamol»: hasta los 90 días disponibles.
+- Se admiten fechas ISO explícitas para el historial; nombres ambiguos como
+  «Insulina» requieren elegir el producto en lugar de tomar el primero.
+
+El resumen general presenta unidades y mayores existencias. Las alertas
+detalladas y sus tarjetas se muestran cuando se piden riesgos o predicción;
+no se añaden automáticamente a una consulta de cantidades o historial.
+
 ## Controles implementados
 
 1. La entrada se normaliza y rechaza solicitudes técnicas, cambios de rol,

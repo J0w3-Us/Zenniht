@@ -9,7 +9,7 @@ from politica_agente import normalizar
 def planificar_consulta(texto, catalogo):
     """Resuelve peticiones claras de historial y ordenación antes del LLM."""
     limpio = normalizar(texto)
-    dias_match = re.search(r"(?:ultimos?|ultimas?)\s+(\d+)\s+dias?", limpio)
+    dias_match = re.search(r"\b(\d+)\s+dias?", limpio)
     dias = min(90, max(1, int(dias_match[1]))) if dias_match else 14
     if re.search(r"\b(historial|historico|historica|evolucion)\b", limpio):
         argumentos = {"dias": 90 if re.search(r"\b(completo|completa|todo|todos)\b", limpio) and not dias_match else dias}
@@ -27,6 +27,8 @@ def planificar_consulta(texto, catalogo):
         fechas = re.findall(r"\b\d{4}-\d{2}-\d{2}\b", limpio)
         if len(fechas) == 2:
             argumentos.update(fecha_inicio=fechas[0], fecha_fin=fechas[1])
+        elif len(fechas) == 1:
+            argumentos["fecha_inicio" if re.search(r"\bdesde\b", limpio) else "fecha_fin"] = fechas[0]
         return [{"function": {"name": "consultar_historial_ventas", "arguments": argumentos}}]
 
     mayor = re.search(r"\b(mayor(?:es)?|mas|abundantes|top)\b", limpio)
@@ -36,7 +38,13 @@ def planificar_consulta(texto, catalogo):
     if (mayor or menor) and (cantidad or ventas):
         orden = ("ventas_asc" if menor else "ventas_desc") if ventas else ("existencia_asc" if menor else "existencia_desc")
         limite = re.search(r"\b(?:top|los|las|primeros|primeras)\s+(\d+)\b", limpio)
-        argumentos = {"ordenar_por": orden, "limite": min(50, max(1, int(limite[1]))) if limite else 10}
+        argumentos = {"ordenar_por": orden, "limite": min(50, max(1, int(limite[1]))) if limite else (50 if re.search(r"\b(todos|todas)\b", limpio) else 10)}
+        for patron, cuadrante in [(r"estrategic", "Estratégico"), (r"apalancamiento", "Apalancamiento"),
+                                  (r"cuello de botella", "Cuello de botella"), (r"no critic", "No crítico")]:
+            if re.search(patron, limpio):
+                argumentos["cuadrante"] = cuadrante
+        if re.search(r"refrigerad|cadena de frio", limpio):
+            argumentos["requiere_refrigeracion"] = True
         if ventas:
             argumentos["dias"] = dias if dias_match else 90
         return [{"function": {"name": "listar_productos_por_filtro", "arguments": argumentos}}]

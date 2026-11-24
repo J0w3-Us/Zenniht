@@ -45,7 +45,8 @@ def dentro_del_alcance(texto, historial=(), catalogo=()):
     if entrada_prohibida(texto):
         return False
     limpio = normalizar(texto)
-    if _DOMINIO.search(limpio) or any(normalizar(p) in limpio for p in catalogo if p):
+    ranking_existencias = re.search(r"\b(mayor(?:es)?|menor(?:es)?|mas|menos)\b", limpio) and re.search(r"\b(cantidad|cantidades|unidades|disponibles)\b", limpio)
+    if _DOMINIO.search(limpio) or ranking_existencias or any(normalizar(p) in limpio for p in catalogo if p):
         return True
     if _CORTO.fullmatch(limpio):
         return any(t.get("role") == "user" and not entrada_prohibida(t.get("content", ""))
