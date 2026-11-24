@@ -23,6 +23,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import httpx
 
 import db
+from consultas_inventario import planificar_consulta, consultar_historial, ventas_por_producto
 from kraljic import ordenar_alertas_kraljic
 from politica_agente import (
     RECHAZO, AYUDA, ERROR_OPERACION, HERRAMIENTAS_PERMITIDAS,
@@ -114,7 +115,7 @@ HERRAMIENTAS_OLLAMA: List[Dict[str, Any]] = [
             "name": "consultar_historial_ventas",
             "description": (
                 "Consulta los registros diarios recientes (fecha, unidades_vendidas, existencia, temperatura) "
-                "de un producto en la tabla ventas de SQLite."
+                "de un producto o el historial agregado de toda la farmacia si no se indica producto."
             ),
             "parameters": {
                 "type": "object",
@@ -125,10 +126,12 @@ HERRAMIENTAS_OLLAMA: List[Dict[str, Any]] = [
                     },
                     "dias": {
                         "type": "integer",
-                        "description": "Número de días más recientes a consultar (entre 1 y 30). Por defecto 14.",
+                        "description": "Número de días más recientes a consultar (entre 1 y 90). Por defecto 14.",
                     },
+                    "fecha_inicio": {"type": "string", "description": "Inicio opcional YYYY-MM-DD."},
+                    "fecha_fin": {"type": "string", "description": "Fin opcional YYYY-MM-DD."},
                 },
-                "required": ["producto"],
+                "required": [],
             },
         },
     },
@@ -159,6 +162,9 @@ HERRAMIENTAS_OLLAMA: List[Dict[str, Any]] = [
                         "type": "integer",
                         "description": "Máximo de productos a devolver (1 a 50). Por defecto 20.",
                     },
+                    "ordenar_por": {"type": "string", "enum": ["producto", "existencia_desc", "existencia_asc", "ventas_desc", "ventas_asc"],
+                        "description": "Orden solicitado: mayores/menores existencias o ventas. No implica filtrar desabasto."},
+                    "dias": {"type": "integer", "description": "Ventana para ordenar ventas, entre 1 y 90 días. Por defecto 90."},
                 },
                 "required": [],
             },
@@ -353,15 +359,16 @@ def obtener_estado_ollama(
 
 
 def _buscar_nombre_producto(conn: sqlite3.Connection, consulta: str) -> List[str]:
-    termino = consulta.strip().lower()
+    from politica_agente import normalizar
+    termino = normalizar(consulta.strip())
     if not termino:
         return []
     filas = conn.execute("SELECT DISTINCT producto FROM ventas ORDER BY producto").fetchall()
     nombres = [str(fila["producto"]) for fila in filas]
-    exactos = [n for n in nombres if n.lower() == termino]
+    exactos = [n for n in nombres if normalizar(n) == termino]
     if exactos:
         return exactos
-    return [n for n in nombres if termino in n.lower()]
+    return [n for n in nombres if termino in normalizar(n)]
 
 
 def ejecutar_herramienta_local(
@@ -430,6 +437,10 @@ def ejecutar_herramienta_local(
                         "existencia": p["existencia"],
                     }
                     for p in menor_existencia
+                ],
+                "productos_mayor_existencia": [
+                    {"producto": p["producto"], "existencia": p["existencia"]}
+                    for p in sorted(productos, key=lambda p: (-int(p["existencia"]), p["producto"]))[:5]
                 ],
                 "ordenes_pendientes": len(pendientes),
             },
@@ -526,29 +537,18 @@ def ejecutar_herramienta_local(
         )
 
     if nombre == "consultar_historial_ventas":
-        termino = str(argumentos.get("producto", "")).strip()
-        dias = max(1, min(30, int(argumentos.get("dias", 14) or 14)))
-        conn = db.get_connection(db_path)
-        try:
-            coincidencias = _buscar_nombre_producto(conn, termino)
-            if not coincidencias:
-                return {"error": f"No se encontró el producto '{termino}'."}, False, "SQLITE LOCAL"
-            prod = coincidencias[0]
-            filas = conn.execute(
-                "SELECT fecha, unidades_vendidas, existencia, temperatura "
-                "FROM ventas WHERE producto = ? ORDER BY fecha DESC LIMIT ?",
-                (prod, dias),
-            ).fetchall()
-            registros = [dict(f) for f in reversed(filas)]
-        finally:
-            conn.close()
-        return {"producto": prod, "dias": len(registros), "historial": registros}, False, "SQLITE LOCAL"
+        resultado = consultar_historial(db_path, producto=str(argumentos.get("producto") or ""),
+            dias=argumentos.get("dias", 14), fecha_inicio=argumentos.get("fecha_inicio"), fecha_fin=argumentos.get("fecha_fin"))
+        return resultado, False, "SQLITE LOCAL"
 
     if nombre == "listar_productos_por_filtro":
         cuadrante = argumentos.get("cuadrante")
         requiere_ref = argumentos.get("requiere_refrigeracion")
         solo_riesgo = bool(argumentos.get("solo_en_riesgo", False))
         limite = max(1, min(50, int(argumentos.get("limite", 20) or 20)))
+        ordenar_por = argumentos.get("ordenar_por", "producto")
+        if ordenar_por not in {"producto", "existencia_desc", "existencia_asc", "ventas_desc", "ventas_asc"}:
+            raise ValueError("Orden de productos no válido.")
 
         estado = obtener_estado_fn()
         conn = db.get_connection(db_path)
@@ -584,9 +584,23 @@ def ejecutar_herramienta_local(
                 "en_desabasto_tft": item["en_desabasto"],
             })
 
+        fecha_inicio = None
+        fecha_fin = estado.get("fecha_existencia")
+        if ordenar_por.startswith("ventas_"):
+            ventas, fecha_inicio, fecha_fin = ventas_por_producto(db_path, argumentos.get("dias", 90))
+            for item in filtrados:
+                item["unidades_vendidas"] = ventas.get(item["producto"], 0)
+        campo = "unidades_vendidas" if ordenar_por.startswith("ventas_") else "existencia"
+        if ordenar_por == "producto":
+            filtrados.sort(key=lambda p: p["producto"])
+        else:
+            signo = -1 if ordenar_por.endswith("_desc") else 1
+            filtrados.sort(key=lambda p: (signo * int(p.get(campo) or 0), p["producto"]))
         return {
             "total_coincidencias": len(filtrados),
             "productos": filtrados[:limite],
+            "ordenar_por": ordenar_por, "fecha_inicio": fecha_inicio, "fecha_fin": fecha_fin,
+            "solo_en_riesgo": solo_riesgo,
         }, False, "SQLITE LOCAL"
 
     if nombre == "ejecutar_prediccion_tft":
@@ -700,11 +714,14 @@ def ejecutar_chat_agente(
     if not dentro_del_alcance(texto_usuario, historial, catalogo):
         return respuesta_controlada(RECHAZO)
 
-    estado_ollama = obtener_estado_ollama(base_url=base_url, modelo_solicitado=modelo_solicitado)
-    if not estado_ollama["ollama_disponible"] or not estado_ollama["modelo_activo"]:
-        raise RuntimeError(str(estado_ollama["detalle"]))
-
-    modelo_activo = str(estado_ollama["modelo_activo"])
+    plan = planificar_consulta(texto_usuario, catalogo)
+    if plan is None:
+        estado_ollama = obtener_estado_ollama(base_url=base_url, modelo_solicitado=modelo_solicitado)
+        if not estado_ollama["ollama_disponible"] or not estado_ollama["modelo_activo"]:
+            raise RuntimeError(str(estado_ollama["detalle"]))
+        modelo_activo = str(estado_ollama["modelo_activo"])
+    else:
+        modelo_activo = "Zenit"
     prompt_actual = cargar_system_prompt()
     mensajes: List[Dict[str, Any]] = [{"role": "system", "content": prompt_actual}]
     for turno in historial[-10:]:
@@ -723,26 +740,34 @@ def ejecutar_chat_agente(
     respuestas_verificadas = []
     productos_mencionados = set()
     todas_las_sugerencias = False
+    mostrar_alertas = False
+    from politica_agente import normalizar
+    pide_alertas = bool(re.search(r"\b(desabasto|riesgo|alertas?|agot\w*|acab\w*)\b", normalizar(texto_usuario)))
     herramientas_chat = [h for h in HERRAMIENTAS_OLLAMA if h["function"]["name"] in HERRAMIENTAS_PERMITIDAS]
     contratos = {h["function"]["name"]: h["function"]["parameters"] for h in herramientas_chat}
     llamadas_ejecutadas = 0
 
     chat_url = f"{base_url.rstrip('/')}/api/chat"
-    for _ in range(MAX_TOOL_ROUNDS + 1):
+    for ronda in range(MAX_TOOL_ROUNDS + 1):
+        if plan is not None and ronda > 0:
+            break
         try:
-            resp = httpx.post(
-                chat_url,
-                json={
-                    "model": modelo_activo,
-                    "messages": mensajes,
-                    "tools": herramientas_chat,
-                    "stream": False,
-                    "options": {"temperature": 0.1},
-                },
-                timeout=OLLAMA_TIMEOUT_SECONDS,
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            if plan is not None:
+                data = {"message": {"role": "assistant", "tool_calls": plan}}
+            else:
+                resp = httpx.post(
+                    chat_url,
+                    json={
+                        "model": modelo_activo,
+                        "messages": mensajes,
+                        "tools": herramientas_chat,
+                        "stream": False,
+                        "options": {"temperature": 0.1},
+                    },
+                    timeout=OLLAMA_TIMEOUT_SECONDS,
+                )
+                resp.raise_for_status()
+                data = resp.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise RuntimeError(
                 f"Error al comunicarse con Ollama local ({modelo_activo}): {exc}"
@@ -783,15 +808,17 @@ def ejecutar_chat_agente(
             for clave, valor in raw_args.items():
                 tipo = propiedades[clave].get("type")
                 valido = ((tipo == "string" and isinstance(valor, str) and len(valor) <= 160)
-                    or (tipo == "integer" and type(valor) is int and 1 <= valor <= 50)
+                    or (tipo == "integer" and type(valor) is int and 1 <= valor <= (90 if clave == "dias" else 50))
                     or (tipo == "number" and type(valor) in (int, float) and 0 <= valor <= 1_000_000_000)
                     or (tipo == "boolean" and type(valor) is bool))
-                if not valido:
+                if not valido or ("enum" in propiedades[clave] and valor not in propiedades[clave]["enum"]):
                     return respuesta_controlada(ERROR_OPERACION)
-            if raw_args.get("fecha_corte"):
+            for campo_fecha in ("fecha_corte", "fecha_inicio", "fecha_fin"):
+                if not raw_args.get(campo_fecha):
+                    continue
                 from datetime import date
                 try:
-                    date.fromisoformat(raw_args["fecha_corte"])
+                    date.fromisoformat(raw_args[campo_fecha])
                 except ValueError:
                     return respuesta_controlada(ERROR_OPERACION)
             llamadas_ejecutadas += 1
@@ -803,13 +830,19 @@ def ejecutar_chat_agente(
                 )
             except (ValueError, TypeError, KeyError, OSError, RuntimeError, sqlite3.Error):
                 return respuesta_controlada(ERROR_OPERACION)
-            respuesta_segura = renderizar_resultado(nombre_tool, resultado_tool, catalogo)
+            respuesta_segura = renderizar_resultado(nombre_tool, resultado_tool, catalogo, incluir_alertas=pide_alertas)
+            mostrar_alertas = mostrar_alertas or nombre_tool == "ejecutar_prediccion_tft" or (
+                nombre_tool in {"consultar_resumen_inventario", "listar_productos_por_filtro"} and pide_alertas)
             if not resultado_tool.get("error"):
                 if nombre_tool == "consultar_sugerencias_pendientes":
                     todas_las_sugerencias = True
                 elif nombre_tool == "consultar_producto" and resultado_tool.get("producto"):
                     productos_mencionados.add(resultado_tool["producto"])
                 for campo in ("productos_en_alerta_tft", "alertas", "productos", "financiadas", "no_financiadas"):
+                    if campo == "productos" and not raw_args.get("solo_en_riesgo"):
+                        continue
+                    if campo == "productos_en_alerta_tft" and not pide_alertas:
+                        continue
                     productos_mencionados.update(p["producto"] for p in resultado_tool.get(campo, []) if p.get("producto") in catalogo)
             if respuesta_segura not in respuestas_verificadas:
                 respuestas_verificadas.append(respuesta_segura)
@@ -845,6 +878,7 @@ def ejecutar_chat_agente(
         # También las consultas de lectura deben sincronizar la interfaz.
         "estado_actualizado": estado_actual,
         "alertas": alertas_actuales,
+        "mostrar_alertas": mostrar_alertas,
         "ordenes_pendientes": ordenes_pendientes,
         "sugerencias_destacadas_ids": [
             o["id"] for o in ordenes_pendientes

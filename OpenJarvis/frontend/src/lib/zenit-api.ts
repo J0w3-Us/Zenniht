@@ -67,6 +67,7 @@ export interface ZenitAgentChatResponse {
   fuentes: string[];
   estado_actualizado: ZenitState | null;
   alertas: ZenitProduct[];
+  mostrar_alertas?: boolean;
   ordenes_pendientes: ZenitAgentOrderSummary[];
   sugerencias_destacadas_ids?: number[];
 }

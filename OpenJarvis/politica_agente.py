@@ -33,7 +33,7 @@ _PROHIBIDO = re.compile(
     r"|\b(receta\s+medica|diagnostico|diagnosticar|dosis|dosificacion|tratamiento|paciente|sintomas|tomar\s+para|automedicacion)\b",
     re.I | re.S,
 )
-_DOMINIO = re.compile(r"\b(inventario|existencias?|stock|ventas?|vendid\w*|medicamentos?|insumos?|productos?|farmacia|desabasto|agot\w*|acabar\w*|terminar\w*|reabast\w*|resurt\w*|sugerencias?|cotiz\w*|presupuest\w*|precios?|costos?|proveedores?|pedidos?|ordenes?|kraljic|riesgos?|alertas?|predic\w*|pronostic\w*|caduc\w*|refriger\w*|cobertura|iva|lotes?|comprar|compras?)\b")
+_DOMINIO = re.compile(r"\b(inventario|historial|historico|historica|evolucion|existencias?|stock|ventas?|vendid\w*|medicamentos?|insumos?|productos?|farmacia|desabasto|agot\w*|acabar\w*|terminar\w*|reabast\w*|resurt\w*|sugerencias?|cotiz\w*|presupuest\w*|precios?|costos?|proveedores?|pedidos?|ordenes?|kraljic|riesgos?|alertas?|predic\w*|pronostic\w*|caduc\w*|refriger\w*|cobertura|iva|lotes?|comprar|compras?)\b")
 _CORTO = re.compile(r"^(?:y\s+)?(?:si|no|continua|sigue|todos|todas|muestralos|muestralas|detallalo|explicalo|mas\s+detalle|por\s+que|cuanto\s+cuesta|y\s+ese)[?¿!¡.,\s]*$")
 
 
@@ -82,23 +82,25 @@ def _nombre(valor, catalogo):
     return re.sub(r"[\r\n`<>|\\\[\]{}*_]", " ", str(valor))[:160]
 
 
-def _productos(filas, catalogo):
+def _productos(filas, catalogo, mostrar_riesgo=True):
     lineas = []
     for p in filas[:50]:
         texto = f"- {_nombre(p['producto'], catalogo)}"
         if "existencia" in p:
             texto += f": {_numero(p['existencia'])} unidades"
+        if "unidades_vendidas" in p:
+            texto += f"; vendidas en el periodo: {_numero(p['unidades_vendidas'])}"
         riesgo = p.get("probabilidad_tft", p.get("probabilidad"))
         porcentaje = p.get("probabilidad_tft_porcentaje")
         if riesgo is not None:
             porcentaje = float(riesgo) * 100
-        if porcentaje is not None:
+        if porcentaje is not None and mostrar_riesgo:
             texto += f"; riesgo a siete días: {_numero(porcentaje, 1)}%"
         lineas.append(texto + ".")
     return "\n".join(lineas) if lineas else "No hay productos que mostrar con este criterio."
 
 
-def renderizar_resultado(nombre, resultado, catalogo):
+def renderizar_resultado(nombre, resultado, catalogo, incluir_alertas=False):
     """Solo campos conocidos y valores del dominio; nunca mensajes libres del LLM."""
     if nombre not in HERRAMIENTAS_PERMITIDAS or not isinstance(resultado, dict):
         return ERROR_OPERACION
@@ -110,10 +112,13 @@ def renderizar_resultado(nombre, resultado, catalogo):
                 return "Carga el historial de inventario antes de realizar la consulta."
             texto = (f"El inventario tiene {_numero(resultado['total_productos'])} productos y {_numero(resultado['filas'])} registros. "
                 f"Al {_fecha(resultado['fecha_existencia'])} hay {_numero(resultado['unidades_totales'])} unidades disponibles.\n\n")
-            if not resultado.get("inferencia_tft"):
+            if incluir_alertas and not resultado.get("inferencia_tft"):
                 texto += "Aún no hay una predicción calculada. Puedes solicitar el análisis de desabasto."
-            else:
+            elif incluir_alertas:
                 texto += "Productos con alerta de desabasto:\n" + _productos(resultado.get("productos_en_alerta_tft", []), catalogo)
+            else:
+                texto += "Productos con mayores existencias:\n" + _productos(resultado.get("productos_mayor_existencia", []), catalogo, mostrar_riesgo=False)
+                texto += f"\n\nSugerencias pendientes: {_numero(resultado.get('ordenes_pendientes', 0))}."
             sin_stock = resultado.get("productos_sin_existencia", [])
             if sin_stock:
                 texto += "\n\nSin existencias al último corte:\n" + "\n".join(f"- {_nombre(p, catalogo)}." for p in sin_stock[:50])
@@ -132,11 +137,26 @@ def renderizar_resultado(nombre, resultado, catalogo):
                 texto += f"\nRiesgo de desabasto a siete días: {_numero(float(resultado['probabilidad_tft']) * 100, 1)}%."
             return texto
         if nombre == "consultar_historial_ventas":
-            return f"Historial de {_nombre(resultado['producto'], catalogo)}:\n" + "\n".join(
+            if resultado.get("producto_no_encontrado"):
+                return "No encontré ese producto en el catálogo. Indica el nombre con el que aparece en el inventario."
+            if resultado.get("coincidencias_multiples"):
+                return "¿De cuál de estos productos necesitas el historial?\n" + "\n".join(f"- {_nombre(p, catalogo)}." for p in resultado["coincidencias_multiples"])
+            if not resultado.get("historial"):
+                return "No hay registros de ventas o existencias para ese periodo."
+            titulo = "Historial general de la farmacia" if resultado.get("agregado") else f"Historial de {_nombre(resultado['producto'], catalogo)}"
+            return (f"{titulo}, del {_fecha(resultado.get('fecha_inicio'))} al {_fecha(resultado.get('fecha_fin'))} "
+                f"({_numero(resultado.get('dias'))} días). Total vendido: {_numero(resultado.get('total_vendido'))} unidades.\n" + "\n".join(
                 f"- {_fecha(f['fecha'])}: {_numero(f['unidades_vendidas'])} vendidas; {_numero(f['existencia'])} en existencia."
-                for f in resultado.get("historial", [])[:30])
+                for f in resultado.get("historial", [])[:90]))
         if nombre == "listar_productos_por_filtro":
-            return f"Coincidencias: {_numero(resultado['total_coincidencias'])}.\n" + _productos(resultado.get("productos", []), catalogo)
+            orden = resultado.get("ordenar_por", "producto")
+            titulos = {"producto": "Productos del inventario", "existencia_desc": "Productos con mayores existencias",
+                "existencia_asc": "Productos con menores existencias", "ventas_desc": "Productos más vendidos", "ventas_asc": "Productos menos vendidos"}
+            titulo = titulos.get(orden, "Productos del inventario")
+            periodo = (f"Del {_fecha(resultado['fecha_inicio'])} al {_fecha(resultado['fecha_fin'])}. "
+                if resultado.get("fecha_inicio") else f"Existencias al {_fecha(resultado.get('fecha_fin'))}. ")
+            return (f"{titulo}. {periodo}Mostrando {_numero(len(resultado.get('productos', [])))} de {_numero(resultado['total_coincidencias'])}.\n"
+                + _productos(resultado.get("productos", []), catalogo, mostrar_riesgo=resultado.get("solo_en_riesgo", False)))
         if nombre == "ejecutar_prediccion_tft":
             return (f"Predicción a siete días calculada para {_numero(resultado['total_productos_evaluados'])} productos "
                 f"con corte al {_fecha(resultado['fecha_corte'])}.\n"

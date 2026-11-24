@@ -263,13 +263,13 @@ export function ZenitPage() {
         model: reply.modelo,
         sources: reply.fuentes,
         tools: reply.herramientas_usadas,
-        alerts: reply.alertas.length > 0 && reply.herramientas_usadas.some(
+        alerts: reply.alertas.length > 0 && (reply.mostrar_alertas ?? reply.herramientas_usadas.some(
           (t) => (
             t.nombre === 'ejecutar_prediccion_tft'
             || t.nombre === 'consultar_resumen_inventario'
             || t.nombre === 'listar_productos_por_filtro'
           ),
-        )
+        ))
           ? reply.alertas
           : undefined,
         pendingOrders: mentionedIds.length > 0
