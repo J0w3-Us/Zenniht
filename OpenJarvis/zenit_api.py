@@ -15,6 +15,13 @@ from agente_zenit import ejecutar_chat_agente, obtener_estado_ollama
 from kraljic import ordenar_alertas_kraljic
 from presupuesto import calcular_presupuesto
 
+import warnings
+
+# Suprimir advertencias verbose de PyTorch Lightning y librerías numéricas en servidor
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning, message=".*Checkpoint antiguo.*")
+
 CSV_PATH = db.CSV_PATH
 DB_PATH = db.DB_PATH
 UMBRAL_ALERTA = 0.50

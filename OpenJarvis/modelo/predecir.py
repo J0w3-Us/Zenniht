@@ -31,6 +31,11 @@ from modelo.datos import (
     preparar_datos,
 )
 
+# Suprimir advertencias redundantes de bibliotecas de inferencia
+warnings.filterwarnings("ignore", category=UserWarning, module="lightning")
+warnings.filterwarnings("ignore", category=UserWarning, module="pytorch_forecasting")
+warnings.filterwarnings("ignore", category=FutureWarning, module="lightning")
+
 HILOS_CPU = 1
 
 _MODELO_CACHE: Optional[Tuple[TemporalFusionTransformer, TimeSeriesDataSet, pd.DataFrame]] = None
