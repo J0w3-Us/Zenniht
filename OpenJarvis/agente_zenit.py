@@ -24,6 +24,10 @@ import httpx
 
 import db
 from kraljic import ordenar_alertas_kraljic
+from politica_agente import (
+    RECHAZO, AYUDA, ERROR_OPERACION, HERRAMIENTAS_PERMITIDAS,
+    entrada_prohibida, dentro_del_alcance, respuesta_social, renderizar_resultado,
+)
 
 OLLAMA_BASE_URL = os.environ.get("ZENIT_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 OLLAMA_DEFAULT_MODEL = os.environ.get("ZENIT_OLLAMA_MODEL", "")
@@ -679,6 +683,23 @@ def ejecutar_chat_agente(
     if not texto_usuario:
         raise ValueError("Escribe una consulta para el agente local de ZENIT.")
 
+    def respuesta_controlada(texto):
+        return {
+            "respuesta": texto, "modelo": "Zenit", "herramientas_usadas": [],
+            "fuentes": [], "estado_actualizado": None, "alertas": [], "ordenes_pendientes": [],
+        }
+
+    # Rechazar antes de consultar el LLM y antes de ejecutar cualquier herramienta.
+    if entrada_prohibida(texto_usuario):
+        return respuesta_controlada(RECHAZO)
+    social = respuesta_social(texto_usuario)
+    if social:
+        return respuesta_controlada(social)
+    estado_inicial = obtener_estado_fn()
+    catalogo = {p["producto"] for p in estado_inicial["productos"]}
+    if not dentro_del_alcance(texto_usuario, historial, catalogo):
+        return respuesta_controlada(RECHAZO)
+
     estado_ollama = obtener_estado_ollama(base_url=base_url, modelo_solicitado=modelo_solicitado)
     if not estado_ollama["ollama_disponible"] or not estado_ollama["modelo_activo"]:
         raise RuntimeError(str(estado_ollama["detalle"]))
@@ -689,7 +710,9 @@ def ejecutar_chat_agente(
     for turno in historial[-10:]:
         rol = turno.get("role")
         contenido = str(turno.get("content", "")).strip()
-        if rol in ("user", "assistant") and contenido:
+        # El historial enviado por el navegador no es una fuente de instrucciones.
+        # No se reenvían respuestas antiguas ni mensajes con contenido prohibido.
+        if rol == "user" and contenido and dentro_del_alcance(contenido, (), catalogo):
             mensajes.append({"role": rol, "content": contenido})
     mensajes.append({"role": "user", "content": texto_usuario})
 
@@ -697,6 +720,12 @@ def ejecutar_chat_agente(
     fuentes: List[str] = []
     actualizo_estado = False
     respuesta_final = ""
+    respuestas_verificadas = []
+    productos_mencionados = set()
+    todas_las_sugerencias = False
+    herramientas_chat = [h for h in HERRAMIENTAS_OLLAMA if h["function"]["name"] in HERRAMIENTAS_PERMITIDAS]
+    contratos = {h["function"]["name"]: h["function"]["parameters"] for h in herramientas_chat}
+    llamadas_ejecutadas = 0
 
     chat_url = f"{base_url.rstrip('/')}/api/chat"
     for _ in range(MAX_TOOL_ROUNDS + 1):
@@ -706,7 +735,7 @@ def ejecutar_chat_agente(
                 json={
                     "model": modelo_activo,
                     "messages": mensajes,
-                    "tools": HERRAMIENTAS_OLLAMA,
+                    "tools": herramientas_chat,
                     "stream": False,
                     "options": {"temperature": 0.1},
                 },
@@ -719,15 +748,21 @@ def ejecutar_chat_agente(
                 f"Error al comunicarse con Ollama local ({modelo_activo}): {exc}"
             ) from exc
 
-        msg = data.get("message") or {}
+        if not isinstance(data, dict) or not isinstance(data.get("message"), dict):
+            raise RuntimeError("Respuesta del motor con formato inválido.")
+        msg = data["message"]
         tool_calls = msg.get("tool_calls") or []
-        mensajes.append(msg)
+        if not isinstance(tool_calls, list) or len(tool_calls) > MAX_TOOL_ROUNDS:
+            return respuesta_controlada(ERROR_OPERACION)
+        mensajes.append({"role": "assistant", "content": "", "tool_calls": tool_calls})
 
         if not tool_calls:
-            respuesta_final = str(msg.get("content") or "").strip()
+            # Nunca publicar texto libre del LLM, aunque parezca una respuesta válida.
             break
 
         for llamada in tool_calls:
+            if not isinstance(llamada, dict) or not isinstance(llamada.get("function"), dict):
+                return respuesta_controlada(ERROR_OPERACION)
             fn = llamada.get("function") or {}
             nombre_tool = str(fn.get("name") or "")
             raw_args = fn.get("arguments") or {}
@@ -737,14 +772,47 @@ def ejecutar_chat_agente(
                 except ValueError:
                     raw_args = {}
 
-            resultado_tool, cambio_estado, fuente = ejecutar_herramienta_local(
-                nombre_tool,
-                raw_args if isinstance(raw_args, dict) else {},
-                db_path=db_path,
-                obtener_estado_fn=obtener_estado_fn,
-                ejecutar_prediccion_fn=ejecutar_prediccion_fn,
-                fecha_corte_default=fecha_corte_default,
-            )
+            if nombre_tool not in HERRAMIENTAS_PERMITIDAS or llamadas_ejecutadas >= MAX_TOOL_ROUNDS:
+                return respuesta_controlada(RECHAZO)
+            if not isinstance(raw_args, dict):
+                return respuesta_controlada(ERROR_OPERACION)
+            contrato = contratos[nombre_tool]
+            propiedades = contrato.get("properties", {})
+            if set(raw_args) - set(propiedades) or not set(contrato.get("required", [])).issubset(raw_args):
+                return respuesta_controlada(ERROR_OPERACION)
+            for clave, valor in raw_args.items():
+                tipo = propiedades[clave].get("type")
+                valido = ((tipo == "string" and isinstance(valor, str) and len(valor) <= 160)
+                    or (tipo == "integer" and type(valor) is int and 1 <= valor <= 50)
+                    or (tipo == "number" and type(valor) in (int, float) and 0 <= valor <= 1_000_000_000)
+                    or (tipo == "boolean" and type(valor) is bool))
+                if not valido:
+                    return respuesta_controlada(ERROR_OPERACION)
+            if raw_args.get("fecha_corte"):
+                from datetime import date
+                try:
+                    date.fromisoformat(raw_args["fecha_corte"])
+                except ValueError:
+                    return respuesta_controlada(ERROR_OPERACION)
+            llamadas_ejecutadas += 1
+
+            try:
+                resultado_tool, cambio_estado, fuente = ejecutar_herramienta_local(
+                    nombre_tool, raw_args, db_path=db_path, obtener_estado_fn=obtener_estado_fn,
+                    ejecutar_prediccion_fn=ejecutar_prediccion_fn, fecha_corte_default=fecha_corte_default,
+                )
+            except (ValueError, TypeError, KeyError, OSError, RuntimeError, sqlite3.Error):
+                return respuesta_controlada(ERROR_OPERACION)
+            respuesta_segura = renderizar_resultado(nombre_tool, resultado_tool, catalogo)
+            if not resultado_tool.get("error"):
+                if nombre_tool == "consultar_sugerencias_pendientes":
+                    todas_las_sugerencias = True
+                elif nombre_tool == "consultar_producto" and resultado_tool.get("producto"):
+                    productos_mencionados.add(resultado_tool["producto"])
+                for campo in ("productos_en_alerta_tft", "alertas", "productos", "financiadas", "no_financiadas"):
+                    productos_mencionados.update(p["producto"] for p in resultado_tool.get(campo, []) if p.get("producto") in catalogo)
+            if respuesta_segura not in respuestas_verificadas:
+                respuestas_verificadas.append(respuesta_segura)
             if cambio_estado:
                 actualizo_estado = True
             if fuente not in fuentes:
@@ -756,14 +824,10 @@ def ejecutar_chat_agente(
             mensajes.append({
                 "role": "tool",
                 "name": nombre_tool,
-                "content": json.dumps(resultado_tool, ensure_ascii=False),
+                "content": json.dumps({"resultado": respuesta_segura}, ensure_ascii=False),
             })
 
-    if not respuesta_final:
-        respuesta_final = (
-            "Consulté las herramientas locales de ZENIT, pero el modelo no devolvió un resumen textual. "
-            "Intenta reformular tu pregunta o revisar los datos en el panel."
-        )
+    respuesta_final = "\n\n".join(respuestas_verificadas) if respuestas_verificadas else AYUDA
 
     estado_actual = obtener_estado_fn()
     alertas_actuales = [
@@ -778,7 +842,12 @@ def ejecutar_chat_agente(
         "modelo": modelo_activo,
         "herramientas_usadas": herramientas_usadas,
         "fuentes": fuentes,
-        "estado_actualizado": estado_actual if actualizo_estado else None,
+        # También las consultas de lectura deben sincronizar la interfaz.
+        "estado_actualizado": estado_actual,
         "alertas": alertas_actuales,
         "ordenes_pendientes": ordenes_pendientes,
+        "sugerencias_destacadas_ids": [
+            o["id"] for o in ordenes_pendientes
+            if todas_las_sugerencias or o["producto"] in productos_mencionados
+        ],
     }

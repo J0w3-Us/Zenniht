@@ -1,7 +1,7 @@
 """Motor de presupuestos, cotizaciones y cálculo de necesidades para ZENIT.
 
-Lee directamente la tabla `catalogo_precios` ya existente en `zenith.db`
-(con `precio_compra_unitario` y `lote_minimo_compra`).
+Lee el catálogo canónico en centavos y conserva compatibilidad con el formato
+anterior de precios unitarios en pesos y lotes mínimos.
 Realiza cálculos monetarios en centavos enteros con IVA (medicamentos tasa 0%, insumos tasa 16%),
 aplica la fórmula empírica sin sesgo de quiebre y priorización Kraljic con techo presupuestal.
 """
@@ -137,10 +137,14 @@ def calcular_presupuesto(
             precio_centavos = 0
             tasa_iva = 0.0
         else:
-            lote_minimo = max(1, int(precio_info.get("lote_minimo_compra") or 1))
-            precio_unitario_float = float(precio_info.get("precio_compra_unitario") or 0.0)
-            precio_centavos = int(round(precio_unitario_float * 100))
-            tasa_iva = 16.0 if producto in INSUMOS_CON_IVA_16 else 0.0
+            lote_minimo = max(1, int(precio_info.get("lote_minimo", precio_info.get("lote_minimo_compra")) or 1))
+            if precio_info.get("precio_compra_centavos") is not None:
+                precio_centavos = int(precio_info["precio_compra_centavos"])
+            else:
+                precio_centavos = int(round(float(precio_info.get("precio_compra_unitario") or 0.0) * 100))
+            tasa_iva = float(precio_info["tasa_iva_pct"]) if precio_info.get("tasa_iva_pct") is not None else (16.0 if producto in INSUMOS_CON_IVA_16 else 0.0)
+            if precio_centavos <= 0:
+                banderas.append("sin_precio")
 
         # Fórmula empírica de reabasto
         necesidad = max(0.0, (demanda_diaria * cobertura_dias) - existencia - transito)

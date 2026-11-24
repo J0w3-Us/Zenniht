@@ -82,6 +82,13 @@ function OrderStatus({
     );
   }
 
+  if (order.estado !== 'pendiente') {
+    const labels = {
+      descartada: 'Descartada', pospuesta: 'Pospuesta', emitida: 'Emitida',
+      recibida: 'Recibida', recibida_parcial: 'Recibida parcialmente', obsoleta: 'Obsoleta',
+    };
+    return <span className="zenit-order-empty">{labels[order.estado]}</span>;
+  }
   const isApproving = approvingOrderId === order.id;
   const isDisabled = actionsDisabled || approvingOrderId !== null;
   return (

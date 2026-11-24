@@ -137,9 +137,9 @@ def test_chat_agente_informa_error_503_si_ollama_no_esta_activo(cliente_con_dato
     assert estado.status_code == 200
     assert estado.json()["ollama_disponible"] is False
 
-    chat = cliente.post("/api/zenit/agente/chat", json={"mensaje": "Hola"})
+    chat = cliente.post("/api/zenit/agente/chat", json={"mensaje": "Consulta el inventario"})
     assert chat.status_code == 503
-    assert "Ollama" in chat.json()["detail"]
+    assert "no está disponible" in chat.json()["detail"]
 
 
 def test_resumen_y_consultar_producto_vacio_devuelven_datos_utiles(cliente_con_datos):
@@ -164,3 +164,25 @@ def test_resumen_y_consultar_producto_vacio_devuelven_datos_utiles(cliente_con_d
     )
     assert "error" not in sin_nombre
     assert len(sin_nombre["productos_menor_existencia"]) == 8
+
+
+def test_chat_sincroniza_y_destaca_las_sugerencias_persistidas(cliente_con_datos, monkeypatch):
+    cliente, ruta = cliente_con_datos
+    db.guardar_predicciones([{"producto": "Insulina glargina", "cuadrante_kraljic": "Estratégico", "probabilidad": .9}],
+        20., "2026-10-22", ruta)
+    monkeypatch.setattr(agente_zenit, "obtener_estado_ollama", lambda **kwargs: {"ollama_disponible": True, "modelo_activo": "prueba"})
+    respuestas = iter([
+        {"role": "assistant", "tool_calls": [{"function": {"name": "consultar_sugerencias_pendientes", "arguments": {}}}]},
+        {"role": "assistant", "content": "texto descartado"},
+    ])
+    monkeypatch.setattr(agente_zenit.httpx, "post", lambda *args, **kwargs: SimpleNamespace(
+        raise_for_status=lambda: None, json=lambda: {"message": next(respuestas)}))
+    body = cliente.post("/api/zenit/agente/chat", json={"mensaje": "Muestra las sugerencias pendientes"}).json()
+    orden_id = body["ordenes_pendientes"][0]["id"]
+    assert body["estado_actualizado"]["ordenes"][0]["id"] == orden_id
+    assert body["sugerencias_destacadas_ids"] == [orden_id]
+    assert cliente.post(f"/api/zenit/ordenes/{orden_id}/aprobar").status_code == 200
+    db.guardar_predicciones([{"producto": "Insulina glargina", "cuadrante_kraljic": "Estratégico", "probabilidad": .9}],
+        20., "2026-10-22", ruta)
+    assert len(db.obtener_ordenes(ruta)) == 1
+    assert db.obtener_ordenes(ruta)[0]["estado"] == "aprobada"

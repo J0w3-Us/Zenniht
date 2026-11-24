@@ -2,6 +2,7 @@ import { ClipboardCheck, PackageCheck } from 'lucide-react';
 import type { ZenitState } from '../../lib/zenit-api';
 import { ZenitPendingOrders } from './ZenitPendingOrders';
 import './ZenitSuggestionsPage.css';
+import { getPendingSuggestions } from './zenit-suggestions';
 
 interface ZenitSuggestionsPageProps {
   state: ZenitState | null;
@@ -10,6 +11,7 @@ interface ZenitSuggestionsPageProps {
   page: number;
   onPageChange: (page: number) => void;
   onApprove: (orderId: number) => void;
+  highlightedOrderIds?: readonly number[];
 }
 
 function isValidDataset(state: ZenitState | null): boolean {
@@ -25,11 +27,11 @@ export function ZenitSuggestionsPage({
   page,
   onPageChange,
   onApprove,
+  highlightedOrderIds = [],
 }: ZenitSuggestionsPageProps) {
-  const productos = state?.productos ?? [];
   const hasValidDataset = isValidDataset(state);
   const pendingCount = state
-    ? productos.filter((producto) => producto.orden?.estado === 'pendiente').length
+    ? getPendingSuggestions(state).length
     : null;
 
   return (
@@ -94,6 +96,7 @@ export function ZenitSuggestionsPage({
               page={page}
               onPageChange={onPageChange}
               onApprove={onApprove}
+              highlightedOrderIds={highlightedOrderIds}
             />
           ) : (
             <div className="zenit-suggestions-state" role="status">

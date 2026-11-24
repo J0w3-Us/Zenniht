@@ -33,6 +33,10 @@ Bienvenido a la base de conocimiento de **ZENIT**. Toda la documentación ha sid
 
 ## 📂 Directorio de Documentos
 
+- **[Entrenamiento validado](./guias/ENTRENAMIENTO_VALIDADO.md)**: implementación
+  actual de separación temporal, objetivo semanal, versiones y resultados de
+  la revisión del 23 de noviembre. Sustituye descripciones previas de ese flujo.
+
 ### 1. `diseno/` (Design System & Tokens)
 - **[DESIGN_SYSTEM.md](./diseno/DESIGN_SYSTEM.md)** `[Referencia]`:  
   Tokens computables (formato Stitch YAML + Markdown), paleta cromática clínica en espacio **OKLCH**, reglas de elevación plana, componentes y la regla estricta de exclusividad del color rojo para desabasto.

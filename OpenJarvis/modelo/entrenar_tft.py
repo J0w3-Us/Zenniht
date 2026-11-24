@@ -74,85 +74,9 @@ def entrenar_tft(
     accelerator: str = "cpu",
     seed: int = SEMILLA_DEFAULT,
 ) -> Dict[str, object]:
-    """Entrena el Temporal Fusion Transformer con hiperparámetros configurables."""
-    import lightning.pytorch as pl
-    import torch
-    from pytorch_forecasting import TemporalFusionTransformer
-
-    limitar_hilos_cpu()
-    pl.seed_everything(seed, workers=True)
-    warnings.filterwarnings("ignore", category=UserWarning)
-
-    csv_path = Path(csv_path)
-    ckpt_path = Path(ckpt_path)
-
-    if not csv_path.exists():
-        raise FileNotFoundError(f"Archivo de datos no encontrado: {csv_path}")
-
-    print(f"Cargando y preparando datos desde: {csv_path}")
-    df = preparar_datos(csv_path)
-    dataset_entrenamiento, df_entrenamiento, peso_positivo = crear_dataset_entrenamiento(df)
-    positivos, negativos, _ = calcular_peso_positivo(df_entrenamiento)
-
-    dataloader_entrenamiento = dataset_entrenamiento.to_dataloader(
-        train=True,
-        batch_size=batch_size,
-        num_workers=0,
-    )
-
-    perdida = CrossEntropyPonderada(peso_positivo=peso_positivo)
-
-    print(f"Instanciando TFT (hidden_size={hidden_size}, heads={attention_head_size}, lr={learning_rate})...")
-    tft = TemporalFusionTransformer.from_dataset(
-        dataset_entrenamiento,
-        learning_rate=learning_rate,
-        hidden_size=hidden_size,
-        attention_head_size=attention_head_size,
-        dropout=dropout,
-        hidden_continuous_size=max(4, hidden_size // 2),
-        output_size=2,
-        loss=perdida,
-        optimizer="adam",
-        log_interval=-1,
-        reduce_on_plateau_patience=4,
-    )
-
-    use_gpu = accelerator.lower() in ("gpu", "cuda") and torch.cuda.is_available()
-    trainer_accel = "gpu" if use_gpu else "cpu"
-
-    entrenador = pl.Trainer(
-        max_epochs=max_epochs,
-        accelerator=trainer_accel,
-        devices=1,
-        gradient_clip_val=0.5,
-        enable_checkpointing=False,
-        logger=False,
-        enable_model_summary=False,
-        enable_progress_bar=True,
-        deterministic=True,
-    )
-    entrenador.fit(tft, train_dataloaders=dataloader_entrenamiento)
-
-    ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-    entrenador.save_checkpoint(str(ckpt_path))
-    print(f"Checkpoint guardado exitosamente en: {ckpt_path}")
-
-    return {
-        "tipo_modelo": "TFT",
-        "ckpt_path": str(ckpt_path),
-        "csv_path": str(csv_path),
-        "hidden_size": hidden_size,
-        "attention_head_size": attention_head_size,
-        "dropout": dropout,
-        "learning_rate": learning_rate,
-        "batch_size": batch_size,
-        "epocas": max_epochs,
-        "positivos_entrenamiento": positivos,
-        "negativos_entrenamiento": negativos,
-        "peso_positivo": float(peso_positivo),
-        "acelerador": trainer_accel,
-        "cuda_disponible": bool(torch.cuda.is_available()),
-    }
+    from modelo.entrenamiento import entrenar_validado
+    return entrenar_validado(csv_path, ckpt_path, hidden_size, attention_head_size,
+                            dropout, learning_rate, batch_size, max_epochs, accelerator, seed)
 
 
 def preparar_modelo_ollama(
@@ -241,6 +165,7 @@ def parse_args() -> argparse.Namespace:
     parser_tft.add_argument("--batch-size", type=int, default=BATCH_SIZE_DEFAULT, help="Tamaño de batch")
     parser_tft.add_argument("--epochs", type=int, default=MAX_EPOCHS_DEFAULT, help="Número de épocas")
     parser_tft.add_argument("--accelerator", type=str, default="cpu", choices=["cpu", "gpu"], help="Dispositivo")
+    parser_tft.add_argument("--activar", action="store_true", help="Activar candidata validada conservando respaldo")
     parser_tft.add_argument("--evaluar", action="store_true", help="Evaluar métricas tras entrenar")
 
     # Subcomando OLLAMA
@@ -284,17 +209,23 @@ def main() -> None:
         )
         print("\nEntrenamiento TFT completado:")
         for clave, valor in resumen.items():
-            print(f"  {clave}: {valor}")
+            if not isinstance(valor, (dict, list)):
+                print(f"  {clave}: {valor}")
 
         if args.evaluar:
             try:
                 from modelo.predecir import evaluar_ultimos_27_dias
-                reporte = evaluar_ultimos_27_dias(csv_path=args.csv, ckpt_path=args.ckpt)
+                reporte = evaluar_ultimos_27_dias(csv_path=args.csv, ckpt_path=Path(resumen["ckpt_path"]))
                 print("\nEvaluación en los últimos 27 días:")
                 for clave, valor in reporte.items():
-                    print(f"  {clave}: {valor}")
+                    if not isinstance(valor, (dict, list)):
+                        print(f"  {clave}: {valor}")
             except Exception as exc:
-                print(f"No fue posible ejecutar evaluación: {exc}")
+                raise RuntimeError("Fallo la evaluacion") from exc
+
+        if args.activar:
+            from modelo.entrenamiento import activar_modelo
+            activar_modelo(Path(resumen["ckpt_path"]), args.ckpt)
 
     else:
         # Modo por defecto (compatible con ejecución directa previa)
@@ -302,17 +233,19 @@ def main() -> None:
         resumen = entrenar(max_epochs=epocas)
         print("\nEntrenamiento TFT completado:")
         for clave, valor in resumen.items():
-            print(f"  {clave}: {valor}")
+            if not isinstance(valor, (dict, list)):
+                print(f"  {clave}: {valor}")
 
         if args.evaluar:
             try:
                 from modelo.predecir import evaluar_ultimos_27_dias
-                reporte = evaluar_ultimos_27_dias()
+                reporte = evaluar_ultimos_27_dias(csv_path=Path(resumen["csv_path"]), ckpt_path=Path(resumen["ckpt_path"]))
                 print("\nEvaluación en los últimos 27 días:")
                 for clave, valor in reporte.items():
-                    print(f"  {clave}: {valor}")
+                    if not isinstance(valor, (dict, list)):
+                        print(f"  {clave}: {valor}")
             except Exception as exc:
-                print(f"No fue posible ejecutar evaluación: {exc}")
+                raise RuntimeError("Fallo la evaluacion") from exc
 
 
 if __name__ == "__main__":

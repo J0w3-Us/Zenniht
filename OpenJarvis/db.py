@@ -6,6 +6,7 @@ Maneja las tablas locales:
   - ordenes (órdenes sugeridas con aprobación explícita del dueño)
 """
 import csv
+import json
 import os
 import sqlite3
 from collections import Counter, defaultdict
@@ -48,6 +49,23 @@ def init_db(db_path: Optional[Path] = None) -> None:
     """Crea las tablas requeridas si no existen."""
     conn = get_connection(db_path)
     with conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS predicciones_historico (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                producto TEXT NOT NULL, fecha_corte TEXT NOT NULL,
+                probabilidad REAL NOT NULL, modelo_version TEXT NOT NULL,
+                dataset_sha256 TEXT NOT NULL, objetivo TEXT NOT NULL,
+                tiempo_inferencia_ms REAL NOT NULL,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS evaluaciones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reporte_json TEXT NOT NULL,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ventas (
                 producto TEXT NOT NULL,
@@ -243,6 +261,17 @@ def guardar_predicciones(
     with conn:
         conn.execute("DELETE FROM predicciones;")
         conn.executemany("""
+            INSERT INTO predicciones_historico (
+                producto, fecha_corte, probabilidad, modelo_version,
+                dataset_sha256, objetivo, tiempo_inferencia_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, [
+            (p["producto"], fecha_corte, float(p["probabilidad"]),
+             p.get("modelo_version", "legacy"), p.get("dataset_sha256", ""),
+             p.get("objetivo", "diario_legacy"), tiempo_ms)
+            for p in predicciones
+        ])
+        conn.executemany("""
             INSERT OR REPLACE INTO predicciones (
                 producto, probabilidad, en_desabasto, cuadrante_kraljic,
                 fecha_corte, tiempo_inferencia_ms
@@ -263,7 +292,7 @@ def guardar_predicciones(
         for p in predicciones:
             if float(p["probabilidad"]) >= 0.50:
                 existente = conn.execute(
-                    "SELECT id FROM ordenes WHERE producto = ? AND fecha_corte = ? AND estado = 'pendiente'",
+                    "SELECT id FROM ordenes WHERE producto = ? AND fecha_corte = ?",
                     (p["producto"], fecha_corte)
                 ).fetchone()
                 if not existente:
@@ -288,6 +317,26 @@ def obtener_predicciones(db_path: Optional[Path] = None) -> List[Dict[str, objec
     filas = conn.execute("SELECT * FROM predicciones").fetchall()
     conn.close()
     return [dict(f) for f in filas]
+
+
+def guardar_evaluacion(reporte, db_path=None):
+    init_db(db_path)
+    conn = get_connection(db_path)
+    try:
+        with conn:
+            conn.execute("INSERT INTO evaluaciones (reporte_json) VALUES (?)", (json.dumps(reporte, ensure_ascii=False),))
+    finally:
+        conn.close()
+
+
+def obtener_evaluacion(db_path=None):
+    init_db(db_path)
+    conn = get_connection(db_path)
+    try:
+        fila = conn.execute("SELECT reporte_json FROM evaluaciones ORDER BY id DESC LIMIT 1").fetchone()
+        return json.loads(fila[0]) if fila else None
+    finally:
+        conn.close()
 
 
 def obtener_ordenes(db_path: Optional[Path] = None) -> List[Dict[str, object]]:

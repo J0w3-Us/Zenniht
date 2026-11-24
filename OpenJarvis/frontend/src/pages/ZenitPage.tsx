@@ -37,6 +37,7 @@ import {
   type ZenitState,
 } from '../lib/zenit-api';
 import './ZenitPage.css';
+import { getChatSuggestionIds, getPendingSuggestions, getSuggestionPage } from '../components/Zenit/zenit-suggestions';
 
 const FECHA_DEMO = '2026-10-22';
 const CHAT_SESSIONS_KEY = 'zenit-chat-sessions-v1';
@@ -106,6 +107,7 @@ export function ZenitPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [inventoryPage, setInventoryPage] = useState(1);
   const [suggestionsPage, setSuggestionsPage] = useState(1);
+  const [highlightedOrderIds, setHighlightedOrderIds] = useState<number[]>([]);
   const [agentStatus, setAgentStatus] = useState<ZenitAgentStatus | null>(null);
   const [selectedModel, setSelectedModel] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
@@ -121,7 +123,14 @@ export function ZenitPage() {
     () => sessions.find((s) => s.id === activeSessionId) ?? null,
     [sessions, activeSessionId],
   );
-  const chatMessages = activeSession?.messages ?? [];
+  const chatMessages = useMemo(() => {
+    const messages = activeSession?.messages ?? [];
+    if (!state) return messages;
+    const pendingIds = new Set(getPendingSuggestions(state).map((p) => p.order.id));
+    return messages.map((message) => ({ ...message,
+      pendingOrders: message.pendingOrders?.filter((o) => pendingIds.has(o.id)),
+    }));
+  }, [activeSession, state]);
 
   useEffect(() => {
     try {
@@ -242,6 +251,11 @@ export function ZenitPage() {
       if (reply.estado_actualizado) {
         setState(reply.estado_actualizado);
       }
+      const mentionedIds = getChatSuggestionIds(reply);
+      if (reply.herramientas_usadas.length > 0) {
+        setHighlightedOrderIds(mentionedIds);
+        setSuggestionsPage(1);
+      }
       const assistantMessage: ZenitChatMessage = {
         id: nextChatId.current++,
         role: 'assistant',
@@ -258,10 +272,8 @@ export function ZenitPage() {
         )
           ? reply.alertas
           : undefined,
-        pendingOrders: reply.ordenes_pendientes.length > 0 && reply.herramientas_usadas.some(
-          (t) => t.nombre === 'consultar_sugerencias_pendientes',
-        )
-          ? reply.ordenes_pendientes
+        pendingOrders: mentionedIds.length > 0
+          ? reply.ordenes_pendientes.filter((o) => mentionedIds.includes(o.id))
           : undefined,
       };
       setSessions((current) =>
@@ -357,6 +369,14 @@ export function ZenitPage() {
   };
 
   const products = state?.productos ?? [];
+  const pendingSuggestions = getPendingSuggestions(state);
+  const mentionedPendingCount = pendingSuggestions.filter((p) => highlightedOrderIds.includes(p.order.id)).length;
+  const handleOpenSuggestions = (orderId?: number) => {
+    const ids = orderId === undefined ? highlightedOrderIds : [orderId];
+    if (orderId !== undefined) setHighlightedOrderIds(ids);
+    setSuggestionsPage(orderId === undefined ? 1 : getSuggestionPage(state, orderId, ids));
+    setActiveScreen('suggestions');
+  };
   const hasValidProductSet = Boolean(
     state?.datos_cargados && state.filas === 4500 && products.length === 50,
   );
@@ -509,13 +529,14 @@ export function ZenitPage() {
                 type="button"
                 className="zenit-nav-link"
                 aria-current={activeScreen === 'suggestions' ? 'page' : undefined}
-                onClick={() => setActiveScreen('suggestions')}
+                onClick={() => handleOpenSuggestions()}
               >
                 <ShoppingBasket aria-hidden="true" size={17} />
                 Sugerencias
-                {products.filter((p) => p.orden?.estado === 'pendiente').length > 0 && (
-                  <span className="zenit-nav-badge">
-                    {products.filter((p) => p.orden?.estado === 'pendiente').length}
+                {pendingSuggestions.length > 0 && (
+                  <span className={`zenit-nav-badge${mentionedPendingCount > 0 ? ' is-mentioned' : ''}`}
+                    aria-label={`${pendingSuggestions.length} pendientes; ${mentionedPendingCount} mencionadas en el chat`}>
+                    {pendingSuggestions.length}
                   </span>
                 )}
               </button>
@@ -565,10 +586,7 @@ export function ZenitPage() {
                 onSendMessage={(msg) => void handleSendChat(msg)}
                 onApproveOrder={(orderId) => void handleApprove(orderId)}
                 onOpenInventoryAlerts={() => handleFilterChange('risk')}
-                onOpenSuggestions={() => {
-                  setSuggestionsPage(1);
-                  setActiveScreen('suggestions');
-                }}
+                onOpenSuggestions={handleOpenSuggestions}
               />
             )}
 
@@ -671,6 +689,7 @@ export function ZenitPage() {
                 page={suggestionsPage}
                 onPageChange={setSuggestionsPage}
                 onApprove={(orderId) => void handleApprove(orderId)}
+                highlightedOrderIds={highlightedOrderIds}
               />
             )}
           </div>

@@ -214,6 +214,17 @@
   font-size: 0.875rem;
 }
 
+.zenit-suggestions-page .zenit-assistant-orders li.is-highlighted {
+  background: var(--color-accent-subtle, var(--color-bg-secondary));
+  box-shadow: inset 3px 0 var(--color-accent);
+  padding-inline: 12px;
+}
+
+.zenit-suggestions-page .zenit-assistant-orders li .zenit-suggestion-mentioned {
+  color: var(--color-accent);
+  font-weight: 650;
+}
+
 .zenit-suggestions-page .zenit-assistant-orders li span {
   font-size: 0.8rem;
 }

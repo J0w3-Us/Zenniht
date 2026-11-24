@@ -2,6 +2,7 @@ import { Check, ClipboardList } from 'lucide-react';
 import { Button } from '../ui/button';
 import type { ZenitProduct, ZenitState } from '../../lib/zenit-api';
 import { paginateItems, ZenitPagination } from './ZenitPagination';
+import { getPendingSuggestions } from './zenit-suggestions';
 
 interface ZenitPendingOrdersProps {
   state: ZenitState | null;
@@ -11,6 +12,7 @@ interface ZenitPendingOrdersProps {
   page: number;
   onPageChange: (page: number) => void;
   onApprove: (orderId: number) => void;
+  highlightedOrderIds?: readonly number[];
 }
 
 export function ZenitPendingOrders({
@@ -21,13 +23,9 @@ export function ZenitPendingOrders({
   page,
   onPageChange,
   onApprove,
+  highlightedOrderIds = [],
 }: ZenitPendingOrdersProps) {
-  const pendingOrders = hasValidDataset && state
-    ? state.productos.flatMap((product) => {
-      const order = product.orden;
-      return order?.estado === 'pendiente' ? [{ product, order }] : [];
-    })
-    : [];
+  const pendingOrders = hasValidDataset ? getPendingSuggestions(state, highlightedOrderIds) : [];
   const paginatedOrders = paginateItems(pendingOrders, page);
 
   return (
@@ -42,10 +40,12 @@ export function ZenitPendingOrders({
       {pendingOrders.length ? (
         <ul>
           {paginatedOrders.items.map(({ product, order }) => (
-            <li key={order.id}>
+            <li key={order.id} id={`zenit-suggestion-${order.id}`}
+              className={highlightedOrderIds.includes(order.id) ? 'is-highlighted' : undefined}>
               <div>
                 <strong>{product.producto}</strong>
                 <span>Cantidad por definir</span>
+                {highlightedOrderIds.includes(order.id) && <span className="zenit-suggestion-mentioned">Mencionada en el chat</span>}
               </div>
               <Button
                 type="button"

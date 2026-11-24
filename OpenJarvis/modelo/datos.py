@@ -1,8 +1,7 @@
 """Preparación de datos y construcción del TimeSeriesDataSet para el TFT de ZENIT.
 
-Respeta el universo cerrado (1 farmacia, 50 productos, 90 días, 4,500 filas),
-la división temporal fija (63 días entrenamiento / 27 días evaluación) y
-el objetivo diario `existencia == 0`.
+Conserva la etiqueta diaria observada y entrena su evento semanal.
+La división temporal es 49 días de ajuste, 14 de validación y 27 de prueba.
 """
 from __future__ import annotations
 
@@ -38,12 +37,26 @@ class CrossEntropyPonderada(CrossEntropy):
             reduction="none",
         ).view(-1, target.size(-1))
 
+class CrossEntropySemanal(CrossEntropyPonderada):
+    """Clasifica el evento semanal directamente, sin independencia diaria."""
+
+    def loss(self, y_pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        pesos = y_pred.new_tensor([1.0, self.peso_positivo])
+        perdida = F.cross_entropy(
+            y_pred.mean(dim=1), target.max(dim=1).values.long(),
+            weight=pesos, reduction="none",
+        )
+        return perdida[:, None].expand(-1, target.size(1))
+
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 CSV_PATH = ROOT_DIR / "data" / "ventas.csv"
 CKPT_PATH = Path(__file__).resolve().parent / "zenith_tft.ckpt"
 
 HORIZONTE = 7
 DIAS_ENTRENAMIENTO = 63
+DIAS_VALIDACION = 14
+FIN_AJUSTE = DIAS_ENTRENAMIENTO - DIAS_VALIDACION
 LONGITUD_ENCODER = 28
 UMBRAL_ALERTA = 0.50
 
@@ -72,6 +85,18 @@ def preparar_datos(csv_path: Union[str, Path] = CSV_PATH) -> pd.DataFrame:
 
     df = df.copy()
     df["fecha"] = pd.to_datetime(df["fecha"])
+    if df.empty or df[list(COLUMNAS_REQUERIDAS)].isna().any().any():
+        raise ValueError("El historial está vacío o contiene valores nulos.")
+    if df.duplicated(["producto", "fecha"]).any():
+        raise ValueError("Hay registros duplicados por producto y fecha.")
+    for columna in ("unidades_vendidas", "existencia"):
+        valores = pd.to_numeric(df[columna], errors="raise")
+        if not np.isfinite(valores).all() or (valores < 0).any() or (valores % 1 != 0).any():
+            raise ValueError(f"{columna} debe contener enteros no negativos.")
+    for _, grupo in df.groupby("producto"):
+        diferencias = grupo["fecha"].sort_values().diff().dropna()
+        if not (diferencias == pd.Timedelta(days=1)).all():
+            raise ValueError("El historial debe tener días consecutivos por producto.")
     df = df.sort_values(["producto", "fecha"]).reset_index(drop=True)
 
     fecha_min = df["fecha"].min()
@@ -126,9 +151,9 @@ def calcular_peso_positivo(df_entrenamiento: pd.DataFrame) -> Tuple[int, int, fl
     return positivos, negativos, peso_positivo
 
 
-def crear_dataset_entrenamiento(df: pd.DataFrame) -> Tuple[TimeSeriesDataSet, pd.DataFrame, float]:
+def crear_dataset_entrenamiento(df: pd.DataFrame, fin: int = DIAS_ENTRENAMIENTO, usar_kraljic: bool = True) -> Tuple[TimeSeriesDataSet, pd.DataFrame, float]:
     """Construye el TimeSeriesDataSet con los primeros 63 días del dataset canónico."""
-    df_entrenamiento = df[df["time_idx"] < DIAS_ENTRENAMIENTO].copy()
+    df_entrenamiento = df[df["time_idx"] < fin].copy()
     _, _, peso_positivo = calcular_peso_positivo(df_entrenamiento)
 
     dataset = TimeSeriesDataSet(
@@ -140,10 +165,7 @@ def crear_dataset_entrenamiento(df: pd.DataFrame) -> Tuple[TimeSeriesDataSet, pd
         max_encoder_length=LONGITUD_ENCODER,
         min_prediction_length=HORIZONTE,
         max_prediction_length=HORIZONTE,
-        static_categoricals=[
-            "cuadrante_kraljic",
-            "requiere_refrigeracion",
-        ],
+        static_categoricals=(["cuadrante_kraljic"] if usar_kraljic else []) + ["requiere_refrigeracion"],
         time_varying_known_reals=["dia_semana", "es_quincena"],
         time_varying_unknown_reals=[
             "unidades_vendidas",
@@ -159,3 +181,23 @@ def crear_dataset_entrenamiento(df: pd.DataFrame) -> Tuple[TimeSeriesDataSet, pd
         add_encoder_length=False,
     )
     return dataset, df_entrenamiento, peso_positivo
+
+
+def crear_particiones_temporales(df: pd.DataFrame):
+    """Ajuste 0..48, etiquetas de validación 49..62, prueba 63..89.
+
+    Escaladores ajustados solo con entrenamiento. Se permite historia anterior
+    en validación, nunca etiquetas de validación en el ajuste.
+    """
+    if df.time_idx.max() < DIAS_ENTRENAMIENTO - 1:
+        raise ValueError("Se necesitan al menos 63 días para ajuste y validación.")
+    entrenamiento, _, _ = crear_dataset_entrenamiento(df, FIN_AJUSTE, usar_kraljic=False)
+    validacion = TimeSeriesDataSet.from_dataset(
+        entrenamiento, df[df.time_idx < DIAS_ENTRENAMIENTO].copy(),
+        min_prediction_idx=FIN_AJUSTE, stop_randomization=True,
+    )
+    positivos = sum(int(y[0].max().item()) for _, y in entrenamiento)
+    negativos = len(entrenamiento) - positivos
+    if positivos == 0 or negativos == 0:
+        raise ValueError("El ajuste necesita ventanas positivas y negativas.")
+    return entrenamiento, validacion, negativos / positivos, positivos, negativos

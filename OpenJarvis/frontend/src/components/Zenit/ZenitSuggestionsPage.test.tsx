@@ -46,6 +46,12 @@ function findElement(
 }
 
 describe('ZenitSuggestionsPage', () => {
+  it('remarca la sugerencia mencionada en el chat con una etiqueta visible', () => {
+    const html = renderToStaticMarkup(<ZenitSuggestionsPage state={createState()} busy={false}
+      approvingOrderId={null} page={1} onPageChange={vi.fn()} onApprove={vi.fn()} highlightedOrderIds={[64]} />);
+    expect(html).toContain('id="zenit-suggestion-64" class="is-highlighted"');
+    expect(html).toContain('Mencionada en el chat');
+  });
   it('muestra estados de carga y vacío sin declarar válido un dataset ausente', () => {
     const loading = renderToStaticMarkup(
       <ZenitSuggestionsPage

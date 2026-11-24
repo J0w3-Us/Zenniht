@@ -33,7 +33,7 @@ interface ZenitChatWorkspaceProps {
   onSendMessage: (message: string) => void;
   onApproveOrder: (orderId: number) => void;
   onOpenInventoryAlerts: () => void;
-  onOpenSuggestions: () => void;
+  onOpenSuggestions: (orderId?: number) => void;
 }
 
 const SUGGESTED_PROMPTS = [
@@ -193,7 +193,7 @@ export function ZenitChatWorkspace({
                           <button
                             type="button"
                             className="zenit-chat-inline-link"
-                            onClick={onOpenSuggestions}
+                            onClick={() => onOpenSuggestions()}
                           >
                             Ver todas
                             <ArrowRight aria-hidden="true" size={13} />
@@ -205,6 +205,14 @@ export function ZenitChatWorkspace({
                               <div>
                                 <strong>{order.producto}</strong>
                                 <span>{order.cuadrante_kraljic} · Cantidad: Por definir</span>
+                              <button
+                                type="button"
+                                className="zenit-chat-inline-link"
+                                aria-label={`Ver sugerencia para ${order.producto}`}
+                                onClick={() => onOpenSuggestions(order.id)}
+                              >
+                                Ver sugerencia
+                              </button>
                               </div>
                               <button
                                 type="button"
