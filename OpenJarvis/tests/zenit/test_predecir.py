@@ -19,9 +19,8 @@ def test_cargar_modelo_falla_si_no_hay_checkpoint(monkeypatch, tmp_path):
 
 
 def test_cargar_modelo_limita_hilos_cpu_incluso_con_modelo_en_cache(monkeypatch):
-    cache = (object(), object(), pd.DataFrame())
+    cache = predecir.cargar_modelo()
     hilos_configurados = []
-    monkeypatch.setattr(predecir, "_MODELO_CACHE", cache)
     monkeypatch.setattr(predecir, "limitar_hilos_cpu", lambda: hilos_configurados.append(1))
 
     assert predecir.cargar_modelo() is cache
@@ -89,6 +88,7 @@ def test_probabilidad_cercana_al_umbral_no_se_redondea_a_alerta(monkeypatch):
         lambda *args, **kwargs: DatasetPrediccion(),
     )
     monkeypatch.setattr(predecir, "_PESO_POSITIVO", 1.0)
+    monkeypatch.setattr(predecir, "_METADATA", {"objetivo": "diario_legacy"})
 
     resultados, _ = predecir.predecir_lote("2026-10-22")
 

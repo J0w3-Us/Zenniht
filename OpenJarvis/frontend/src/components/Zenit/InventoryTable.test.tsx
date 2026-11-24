@@ -17,6 +17,15 @@ function createProducts(): ZenitProduct[] {
 }
 
 describe('InventoryTable', () => {
+  it.each(['descartada', 'pospuesta', 'emitida', 'recibida', 'recibida_parcial', 'obsoleta'] as const)(
+    'no permite aprobar una orden %s recibida del nuevo backend', (estado) => {
+      const products = createProducts();
+      products[0].orden = { id: 1, estado, cantidad_sugerida: null };
+      const html = renderToStaticMarkup(<InventoryTable products={products} stockDate={null} approvingOrderId={null}
+        actionsDisabled={false} onApprove={vi.fn()} />);
+      expect(html).not.toContain('Aprobar sugerencia');
+    },
+  );
   it('muestra exactamente 50 productos y distingue alertas y sugerencias manuales', () => {
     const html = renderToStaticMarkup(
       <InventoryTable

@@ -3,7 +3,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 
 export interface ZenitOrder {
   id: number;
-  estado: 'pendiente' | 'aprobada';
+  estado: 'pendiente' | 'aprobada' | 'descartada' | 'pospuesta' | 'emitida' | 'recibida' | 'recibida_parcial' | 'obsoleta';
   cantidad_sugerida: number | null;
 }
 
@@ -23,6 +23,8 @@ export interface ZenitState {
   /** Última fecha registrada que corresponde a las existencias por producto. */
   fecha_existencia?: string | null;
   productos: ZenitProduct[];
+  /** Lista completa del servidor; la orden por producto es solo un resumen. */
+  ordenes?: ZenitAgentOrderSummary[];
   inferencia: {
     fecha_corte: string;
     tiempo_inferencia_ms: number;
@@ -53,7 +55,7 @@ export interface ZenitAgentOrderSummary {
   producto: string;
   cuadrante_kraljic: string;
   probabilidad_desabasto: number;
-  estado: 'pendiente' | 'aprobada';
+  estado: ZenitOrder['estado'];
   cantidad_sugerida: number | null;
   fecha_corte: string;
 }
@@ -65,7 +67,9 @@ export interface ZenitAgentChatResponse {
   fuentes: string[];
   estado_actualizado: ZenitState | null;
   alertas: ZenitProduct[];
+  mostrar_alertas?: boolean;
   ordenes_pendientes: ZenitAgentOrderSummary[];
+  sugerencias_destacadas_ids?: number[];
 }
 
 const API_ORIGIN = isTauri() ? 'http://127.0.0.1:8000' : 'http://localhost:8000';

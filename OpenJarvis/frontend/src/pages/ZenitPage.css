@@ -1729,6 +1729,12 @@
   text-align: center;
 }
 
+.zenit-nav-badge.is-mentioned {
+  background: var(--color-accent-subtle, var(--color-bg-secondary));
+  color: var(--color-accent);
+  outline: 1px solid var(--color-accent);
+}
+
 .zenit-sidebar-status {
   display: flex;
   align-items: center;

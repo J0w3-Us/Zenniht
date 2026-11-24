@@ -132,7 +132,7 @@ def _obtener_estado() -> Dict[str, object]:
     ordenes = db.obtener_ordenes(DB_PATH) if cargado else []
     prediccion_por_producto = {p["producto"]: p for p in predicciones}
     orden_por_producto = {}
-    for orden in ordenes:
+    for orden in sorted(ordenes, key=lambda o: o["estado"] != "pendiente"):
         orden_por_producto.setdefault(orden["producto"], orden)
 
     productos = []
@@ -274,6 +274,31 @@ def obtener_ordenes() -> List[Dict[str, object]]:
     return db.obtener_ordenes(DB_PATH)
 
 
+@app.get("/api/zenit/evaluacion")
+def obtener_evaluacion_modelo():
+    return db.obtener_evaluacion(DB_PATH)
+
+
+@app.post("/api/zenit/evaluar")
+def evaluar_modelo():
+    """Evalúa el checkpoint activo; no entrena ni ajusta usando la prueba."""
+    from modelo.predecir import evaluar_ultimos_27_dias, cargar_modelo
+    try:
+        cargar_modelo()
+        reporte = evaluar_ultimos_27_dias()
+        # Leer después de cargar: el módulo actualiza sus metadatos al cambiar checkpoint.
+        from modelo import predecir as motor
+        reporte["modelo_version"] = motor._METADATA.get("modelo_version")
+        reporte["dataset_sha256"] = motor._METADATA.get("dataset_sha256")
+        reporte["objetivo"] = motor._METADATA.get("objetivo")
+        db.guardar_evaluacion(reporte, DB_PATH)
+        return reporte
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=f"No se pudo evaluar el TFT: {exc}") from exc
+
+
 @app.get("/api/zenit/presupuesto")
 def obtener_presupuesto(
     techo: Optional[float] = None,
@@ -401,7 +426,11 @@ def recibir_orden(orden_id: int, solicitud: SolicitudRecepcion) -> Dict[str, obj
 
 @app.get("/api/zenit/agente/estado")
 def estado_agente(modelo: Optional[str] = None) -> Dict[str, object]:
-    return obtener_estado_ollama(modelo_solicitado=modelo)
+    estado = obtener_estado_ollama(modelo_solicitado=modelo)
+    estado.pop("error_tecnico", None)
+    if not estado.get("ollama_disponible") or not estado.get("modelo_activo"):
+        estado["detalle"] = "El asistente no está disponible en este momento. Inténtalo de nuevo."
+    return estado
 
 
 @app.post("/api/zenit/agente/chat")
@@ -417,6 +446,7 @@ def chat_agente(solicitud: SolicitudChatAgente) -> Dict[str, object]:
             fecha_corte_default=solicitud.fecha_corte.isoformat(),
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail="La consulta no pudo procesarse. Revisa el mensaje e inténtalo de nuevo.") from exc
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        logger.exception("Fallo interno del agente ZENIT")
+        raise HTTPException(status_code=503, detail="El asistente no está disponible en este momento. Inténtalo de nuevo.") from exc

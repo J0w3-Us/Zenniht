@@ -1,23 +1,23 @@
 """Inferencia local en CPU y evaluación rodante del TFT de ZENIT.
 
-Reglas congeladas:
-- Único modelo: Temporal Fusion Transformer (pytorch-forecasting, hidden_size=16, CPU).
-- Límite de 1 hilo intraoperatorio y 1 interoperativo en PyTorch.
-- Corrección de probabilidad por el peso de clase positivo antes de agregar el
-  riesgo semanal: 1 - producto(1 - p_diaria).
-- Sin respuestas prefabricadas ni respaldos: si falta el checkpoint, lanza error.
+El modelo nuevo clasifica el evento semanal directamente. La lectura de
+checkpoints antiguos conserva su comportamiento y advierte su aproximación.
 """
 from __future__ import annotations
 
 import time
+import hashlib
+import json
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
-from pytorch_forecasting import TemporalFusionTransformer, TimeSeriesDataSet
-from sklearn.metrics import f1_score, precision_score, recall_score
+from pytorch_forecasting import TimeSeriesDataSet
+from modelo.red import TFTZenit as TemporalFusionTransformer
+from sklearn.metrics import f1_score, precision_score, recall_score, brier_score_loss, average_precision_score
 
 from modelo.datos import (
     CKPT_PATH,
@@ -35,6 +35,8 @@ HILOS_CPU = 1
 
 _MODELO_CACHE: Optional[Tuple[TemporalFusionTransformer, TimeSeriesDataSet, pd.DataFrame]] = None
 _PESO_POSITIVO: Optional[float] = None
+_CACHE_KEY = None
+_METADATA = {}
 
 
 def limitar_hilos_cpu() -> None:
@@ -74,31 +76,31 @@ def agregar_probabilidad_7d(probabilidades: np.ndarray) -> np.ndarray:
     return 1.0 - np.prod(1.0 - arr, axis=1)
 
 
-def cargar_modelo() -> Tuple[TemporalFusionTransformer, TimeSeriesDataSet, pd.DataFrame]:
-    """Carga y mantiene en caché el checkpoint local del TFT en CPU."""
-    global _MODELO_CACHE, _PESO_POSITIVO
-
+def cargar_modelo(csv_path=None, ckpt_path=None) -> Tuple[TemporalFusionTransformer, TimeSeriesDataSet, pd.DataFrame]:
+    """Carga escaladores del checkpoint y refresca al cambiar datos o modelo."""
+    global _MODELO_CACHE, _PESO_POSITIVO, _CACHE_KEY, _METADATA
     limitar_hilos_cpu()
-    if _MODELO_CACHE is not None:
-        return _MODELO_CACHE
-
-    ruta_ckpt = Path(CKPT_PATH)
+    ruta_ckpt, ruta_csv = Path(ckpt_path or CKPT_PATH).resolve(), Path(csv_path or CSV_PATH).resolve()
     if not ruta_ckpt.is_file():
-        raise FileNotFoundError(
-            f"No se encontró el checkpoint TFT en {ruta_ckpt}. "
-            "Entrena el modelo primero con: python -m modelo.entrenar_tft"
-        )
-
-    df = preparar_datos(CSV_PATH)
-    dataset_entrenamiento, _, peso_positivo = crear_dataset_entrenamiento(df)
-    modelo = TemporalFusionTransformer.load_from_checkpoint(
-        str(ruta_ckpt),
-        map_location="cpu",
-    )
+        raise FileNotFoundError(f"No se encontró el checkpoint TFT en {ruta_ckpt}. Entrena con: python -m modelo.entrenar_tft tft")
+    clave = (str(ruta_ckpt), ruta_ckpt.stat().st_mtime_ns, ruta_ckpt.stat().st_size,
+             str(ruta_csv), ruta_csv.stat().st_mtime_ns, ruta_csv.stat().st_size)
+    if _MODELO_CACHE is not None and clave == _CACHE_KEY:
+        return _MODELO_CACHE
+    df = preparar_datos(ruta_csv)
+    modelo = TemporalFusionTransformer.load_from_checkpoint(str(ruta_ckpt), map_location="cpu")
+    metadata = dict(modelo.hparams.get("zenit_metadata", {}))
+    huella = hashlib.sha256(ruta_csv.read_bytes()).hexdigest()
+    if metadata and metadata.get("dataset_sha256") != huella:
+        raise ValueError("El dataset no coincide con la huella del entrenamiento. Reentrena y valida antes de usarlo.")
+    parametros = modelo.hparams.get("dataset_parameters")
+    if parametros is None:
+        raise ValueError("El checkpoint no contiene los normalizadores del entrenamiento.")
+    dataset = TimeSeriesDataSet.from_parameters(parametros, df[df.time_idx < metadata.get("fin_ajuste_exclusivo", DIAS_ENTRENAMIENTO)], stop_randomization=True)
     modelo.eval()
-
-    _PESO_POSITIVO = peso_positivo
-    _MODELO_CACHE = (modelo, dataset_entrenamiento, df)
+    _METADATA = metadata or {"objetivo": "diario_legacy", "modelo_version": "legacy-" + hashlib.sha256(ruta_ckpt.read_bytes()).hexdigest()[:12], "dataset_sha256": huella}
+    _PESO_POSITIVO = float(metadata.get("peso_positivo", getattr(modelo.loss, "peso_positivo", 1.0)))
+    _CACHE_KEY, _MODELO_CACHE = clave, (modelo, dataset, df)
     return _MODELO_CACHE
 
 
@@ -173,9 +175,9 @@ def _extraer_logits(salida: object) -> torch.Tensor:
     return salida
 
 
-def predecir_lote(fecha_corte: str) -> Tuple[List[Dict[str, object]], float]:
+def predecir_lote(fecha_corte: str, csv_path=None, ckpt_path=None) -> Tuple[List[Dict[str, object]], float]:
     """Ejecuta la inferencia del TFT para los 50 productos en una fecha de corte."""
-    modelo, dataset_entrenamiento, df = cargar_modelo()
+    modelo, dataset_entrenamiento, df = cargar_modelo(csv_path, ckpt_path) if csv_path is not None or ckpt_path is not None else cargar_modelo()
     df_pred, productos, cuadrantes = _construir_dataframe_prediccion(df, fecha_corte)
 
     dataset_pred = TimeSeriesDataSet.from_dataset(
@@ -191,24 +193,34 @@ def predecir_lote(fecha_corte: str) -> Tuple[List[Dict[str, object]], float]:
     )
 
     inicio = time.perf_counter()
-    with torch.no_grad():
+    with torch.inference_mode():
         salida = modelo.predict(
             dataloader,
             mode="raw",
             return_x=False,
+            return_index=True,
             trainer_kwargs={"accelerator": "cpu", "logger": False, "enable_progress_bar": False},
         )
     tiempo_ms = (time.perf_counter() - inicio) * 1000.0
 
     logits = _extraer_logits(salida)
-    prob_diaria_ponderada = torch.softmax(logits.float(), dim=-1)[..., 1].detach().cpu().numpy()
-
+    indice = getattr(salida, "index", None)
+    if isinstance(indice, pd.DataFrame):
+        productos = indice["producto"].tolist()
+    if len(productos) != logits.shape[0] or len(set(productos)) != len(productos):
+        raise RuntimeError("El TFT devolvió ventanas duplicadas o una salida incompleta.")
     peso = _PESO_POSITIVO
     if peso is None:
         _, _, peso = calcular_peso_positivo(df[df["time_idx"] < DIAS_ENTRENAMIENTO])
-
-    prob_diaria = corregir_probabilidad_ponderada(prob_diaria_ponderada, peso)
-    prob_semanal = agregar_probabilidad_7d(prob_diaria)
+    if _METADATA.get("objetivo") == "evento_semanal_v1":
+        ponderada = torch.softmax(logits.float().mean(dim=1), dim=-1)[:, 1].cpu().numpy()
+        prob_semanal = corregir_probabilidad_ponderada(ponderada, peso)
+    else:
+        warnings.warn("Checkpoint antiguo: riesgo semanal aproximado bajo independencia diaria. Reentrena para evento semanal directo.", RuntimeWarning)
+        ponderada = torch.softmax(logits.float(), dim=-1)[..., 1].cpu().numpy()
+        prob_semanal = agregar_probabilidad_7d(corregir_probabilidad_ponderada(ponderada, peso))
+    if not np.isfinite(prob_semanal).all() or ((prob_semanal < 0) | (prob_semanal > 1)).any():
+        raise RuntimeError("El TFT produjo probabilidades inválidas.")
 
     resultados: List[Dict[str, object]] = []
     for producto, prob in zip(productos, prob_semanal.tolist()):
@@ -219,59 +231,103 @@ def predecir_lote(fecha_corte: str) -> Tuple[List[Dict[str, object]], float]:
             "probabilidad": prob_float,
             "en_desabasto": int(prob_float >= UMBRAL_ALERTA),
             "fecha_corte": fecha_corte,
+            "modelo_version": _METADATA.get("modelo_version", "sin-version"),
+            "dataset_sha256": _METADATA.get("dataset_sha256", ""),
+            "objetivo": _METADATA.get("objetivo", "diario_legacy"),
         })
 
     return resultados, tiempo_ms
 
 
-def evaluar_ultimos_27_dias() -> Dict[str, object]:
-    """Evalúa el F1-Score rodante sobre los últimos 27 días (21 cortes × 50 productos)."""
-    df = preparar_datos(CSV_PATH)
-    fechas_ordenadas = sorted(df["fecha"].unique())
-    cortes = fechas_ordenadas[DIAS_ENTRENAMIENTO - 1 : len(fechas_ordenadas) - HORIZONTE]
-
-    y_real: List[int] = []
-    y_pred: List[int] = []
-
-    for corte_ts in cortes:
-        fecha_corte = pd.Timestamp(corte_ts).strftime("%Y-%m-%d")
-        corte_idx = int(df.loc[df["fecha"] == corte_ts, "time_idx"].iloc[0])
-
-        ventana_futura = df[
-            (df["time_idx"] > corte_idx) & (df["time_idx"] <= corte_idx + HORIZONTE)
-        ]
-        quiebre_real_por_prod = (
-            ventana_futura.groupby("producto")["en_desabasto"].max().to_dict()
-        )
-
-        predicciones, _ = predecir_lote(fecha_corte)
-        for item in predicciones:
-            producto = str(item["producto"])
-            y_real.append(int(quiebre_real_por_prod[producto]))
-            y_pred.append(int(float(item["probabilidad"]) >= UMBRAL_ALERTA))
-
-    tp = sum(1 for r, p in zip(y_real, y_pred) if r == 1 and p == 1)
-    fp = sum(1 for r, p in zip(y_real, y_pred) if r == 0 and p == 1)
-    fn = sum(1 for r, p in zip(y_real, y_pred) if r == 1 and p == 0)
-    tn = sum(1 for r, p in zip(y_real, y_pred) if r == 0 and p == 0)
-
+def resumir_metricas(y_real, probabilidades):
+    """Métricas al umbral fijo; calibración descriptiva, sin ajustar con prueba."""
+    reales = np.asarray(y_real, dtype=int)
+    prob = np.asarray(probabilidades, dtype=float)
+    if reales.size == 0 or reales.shape != prob.shape or not np.isfinite(prob).all() or ((prob < 0) | (prob > 1)).any():
+        raise ValueError("La evaluación necesita etiquetas y probabilidades válidas.")
+    pred = prob >= UMBRAL_ALERTA
+    calibracion = []
+    for lo, hi in zip(np.linspace(0, 1, 6)[:-1], np.linspace(0, 1, 6)[1:]):
+        mascara = (prob >= lo) & ((prob < hi) if hi < 1 else (prob <= hi))
+        if mascara.any():
+            calibracion.append({"desde": float(lo), "hasta": float(hi), "casos": int(mascara.sum()),
+                "riesgo_medio": float(prob[mascara].mean()), "frecuencia_real": float(reales[mascara].mean())})
     return {
-        "origenes_evaluados": len(cortes),
-        "total_evaluados": len(y_real),
-        "positivos_reales": sum(y_real),
-        "positivos_predichos": sum(y_pred),
-        "tp": tp,
-        "fp": fp,
-        "fn": fn,
-        "tn": tn,
-        "precision": float(precision_score(y_real, y_pred, zero_division=0)),
-        "recall": float(recall_score(y_real, y_pred, zero_division=0)),
-        "f1": float(f1_score(y_real, y_pred, zero_division=0)),
+        "total_evaluados": int(len(reales)), "positivos_reales": int(reales.sum()), "positivos_predichos": int(pred.sum()),
+        "tp": int(((reales == 1) & pred).sum()), "fp": int(((reales == 0) & pred).sum()),
+        "fn": int(((reales == 1) & ~pred).sum()), "tn": int(((reales == 0) & ~pred).sum()),
+        "precision": float(precision_score(reales, pred, zero_division=0)),
+        "recall": float(recall_score(reales, pred, zero_division=0)),
+        "f1": float(f1_score(reales, pred, zero_division=0)),
+        "brier": float(brier_score_loss(reales, prob)),
+        "pr_auc": float(average_precision_score(reales, prob)) if reales.sum() else None,
+        "calibracion": calibracion,
     }
 
 
+def evaluar_periodo(csv_path=CSV_PATH, ckpt_path=None, inicio=DIAS_ENTRENAMIENTO, fin=None):
+    """Las etiquetas futuras caen íntegramente en [inicio, fin). Ventanas solapadas."""
+    df = preparar_datos(csv_path)
+    fin = int(df.time_idx.max()) + 1 if fin is None else fin
+    if inicio < LONGITUD_ENCODER or fin > int(df.time_idx.max()) + 1 or fin - inicio < HORIZONTE:
+        raise ValueError("El periodo necesita historia suficiente y siete días futuros completos.")
+    cortes = range(inicio - 1, fin - HORIZONTE)
+    reales, probabilidades, referencia, detalle = [], [], [], []
+    esperados = set(df.producto.unique())
+    for corte in cortes:
+        fecha = df.loc[df.time_idx == corte, "fecha"].iloc[0].strftime("%Y-%m-%d")
+        if ckpt_path is None and Path(csv_path).resolve() == Path(CSV_PATH).resolve():
+            predicciones, _ = predecir_lote(fecha)
+        else:
+            predicciones, _ = predecir_lote(fecha, csv_path=csv_path, ckpt_path=ckpt_path)
+        if len(predicciones) != len(esperados) or {p["producto"] for p in predicciones} != esperados:
+            raise RuntimeError("Evaluación incompleta: faltan productos o hay duplicados.")
+        futuro = df[(df.time_idx > corte) & (df.time_idx <= corte + HORIZONTE)].groupby("producto").en_desabasto.max().to_dict()
+        actual = df[df.time_idx == corte].set_index("producto")
+        for item in predicciones:
+            producto = item["producto"]
+            real, prob = int(futuro[producto]), float(item["probabilidad"])
+            base = int(actual.loc[producto, "dias_cobertura"] < 7)
+            reales.append(real); probabilidades.append(prob); referencia.append(base)
+            detalle.append({"producto": producto, "fecha_corte": fecha, "real": real, "probabilidad": prob})
+    reporte = {**resumir_metricas(reales, probabilidades), "origenes_evaluados": len(cortes),
+        "inicio_etiquetas": inicio, "fin_etiquetas_exclusivo": fin, "umbral": UMBRAL_ALERTA,
+        "referencia_cobertura": resumir_metricas(reales, referencia),
+        "por_producto": {}, "detalle": detalle,
+        "nota": "Ventanas solapadas; los casos no son independientes. No mide demanda no atendida ni efecto de intervenciones.",
+    }
+    for producto in sorted(esperados):
+        filas = [r for r in detalle if r["producto"] == producto]
+        reporte["por_producto"][producto] = resumir_metricas([r["real"] for r in filas], [r["probabilidad"] for r in filas])
+    episodios = []
+    for producto, grupo in df.groupby("producto"):
+        grupo = grupo.sort_values("time_idx")
+        comienzos = grupo[(grupo.en_desabasto == 1) & (grupo.en_desabasto.shift(1, fill_value=0) == 0)]
+        for evento in comienzos.itertuples():
+            if not inicio <= evento.time_idx < fin:
+                continue
+            fecha_evento = evento.fecha
+            avisos = [r for r in detalle if r["producto"] == producto and r["probabilidad"] >= UMBRAL_ALERTA
+                and 0 < (fecha_evento - pd.Timestamp(r["fecha_corte"])).days <= HORIZONTE]
+            episodios.append({"producto": producto, "inicio": fecha_evento.strftime("%Y-%m-%d"),
+                "detectado": bool(avisos), "anticipacion_dias": max(
+                    ((fecha_evento - pd.Timestamp(r["fecha_corte"])).days for r in avisos), default=None)})
+    reporte["episodios"] = episodios
+    reporte["episodios_detectados"] = sum(e["detectado"] for e in episodios)
+    reporte["episodios_totales"] = len(episodios)
+    return reporte
+
+
+def evaluar_ultimos_27_dias(csv_path=None, ckpt_path=None) -> Dict[str, object]:
+    ruta = Path(csv_path or CSV_PATH)
+    reporte = evaluar_periodo(ruta, ckpt_path)
+    if ckpt_path is not None:
+        reporte["ckpt_path"] = str(Path(ckpt_path).resolve())
+        reporte["dataset_sha256"] = hashlib.sha256(ruta.read_bytes()).hexdigest()
+        reporte["modelo_version"] = _METADATA.get("modelo_version", "sin-version")
+        Path(ckpt_path).with_suffix(".evaluacion.json").write_text(json.dumps(reporte, indent=2, ensure_ascii=False), encoding="utf-8")
+    return reporte
+
+
 if __name__ == "__main__":
-    reporte = evaluar_ultimos_27_dias()
-    print("Evaluación rodante últimos 27 días:")
-    for clave, valor in reporte.items():
-        print(f"  {clave}: {valor}")
+    print(json.dumps(evaluar_ultimos_27_dias(), indent=2, ensure_ascii=False))

@@ -1,5 +1,10 @@
 # Manual de Operación y Referencia Local de ZENIT
 
+> **Actualización de entrenamiento, 23 de noviembre:** seguir
+> [Entrenamiento validado](./ENTRENAMIENTO_VALIDADO.md) para el flujo vigente de
+> ajuste, validación, evaluación y activación de candidatas. Los checkpoints
+> nuevos clasifican el evento semanal directamente y se guardan por versión.
+
 Este documento es una guía práctica (**How-To / Referencia técnica**) para desarrolladores, operadores y agentes de IA. Describe cómo preparar, ejecutar y validar el sistema ZENIT en un entorno 100% local y sin conexión a Internet.
 
 ---
