@@ -256,6 +256,7 @@ export function ZenitPage() {
         setHighlightedOrderIds(mentionedIds);
         setSuggestionsPage(1);
       }
+      const isOrderQuery = /(orden|sugerencia|reabast|compr|pedid|aprob)/i.test(messageText);
       const assistantMessage: ZenitChatMessage = {
         id: nextChatId.current++,
         role: 'assistant',
@@ -263,7 +264,7 @@ export function ZenitPage() {
         model: reply.modelo,
         sources: reply.fuentes,
         tools: reply.herramientas_usadas,
-        alerts: reply.alertas.length > 0 && (reply.mostrar_alertas ?? reply.herramientas_usadas.some(
+        alerts: reply.alertas.length > 0 && reply.render_widget === true && (reply.mostrar_alertas ?? reply.herramientas_usadas.some(
           (t) => (
             t.nombre === 'ejecutar_prediccion_tft'
             || t.nombre === 'consultar_resumen_inventario'
@@ -272,7 +273,8 @@ export function ZenitPage() {
         ))
           ? reply.alertas
           : undefined,
-        pendingOrders: mentionedIds.length > 0
+        render_widget: reply.render_widget,
+        pendingOrders: (mentionedIds.length > 0 && isOrderQuery)
           ? reply.ordenes_pendientes.filter((o) => mentionedIds.includes(o.id))
           : undefined,
       };

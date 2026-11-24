@@ -701,6 +701,7 @@ def ejecutar_chat_agente(
         return {
             "respuesta": texto, "modelo": "Zenit", "herramientas_usadas": [],
             "fuentes": [], "estado_actualizado": None, "alertas": [], "ordenes_pendientes": [],
+            "render_widget": False,
         }
 
     # Rechazar antes de consultar el LLM y antes de ejecutar cualquier herramienta.
@@ -866,9 +867,12 @@ def ejecutar_chat_agente(
     alertas_actuales = [
         p for p in estado_actual["productos"] if p.get("en_desabasto") is True
     ]
-    ordenes_pendientes = [
-        o for o in estado_actual["ordenes"] if o.get("estado") == "pendiente"
-    ]
+    # Sincronización atómica: si la respuesta fue un error o rechazo, nunca emitir widgets activos
+    es_error = respuesta_final in (ERROR_OPERACION, RECHAZO) or not respuestas_verificadas
+    ordenes_pendientes = (
+        [o for o in estado_actual["ordenes"] if o.get("estado") == "pendiente"]
+        if not es_error else []
+    )
 
     return {
         "respuesta": respuesta_final,
@@ -877,11 +881,12 @@ def ejecutar_chat_agente(
         "fuentes": fuentes,
         # También las consultas de lectura deben sincronizar la interfaz.
         "estado_actualizado": estado_actual,
-        "alertas": alertas_actuales,
-        "mostrar_alertas": mostrar_alertas,
+        "alertas": alertas_actuales if not es_error else [],
+        "mostrar_alertas": mostrar_alertas and not es_error,
         "ordenes_pendientes": ordenes_pendientes,
         "sugerencias_destacadas_ids": [
             o["id"] for o in ordenes_pendientes
             if todas_las_sugerencias or o["producto"] in productos_mencionados
-        ],
+        ] if not es_error else [],
+        "render_widget": bool(not es_error and mostrar_alertas and len(alertas_actuales) > 0 and len(herramientas_usadas) > 0),
     }

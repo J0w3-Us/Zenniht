@@ -49,8 +49,9 @@ def test_historial_de_producto_en_orden_cronologico(cliente):
     conn.close()
     assert "Historial de Insulina glargina" in body["respuesta"]
     assert "(7 días)" in body["respuesta"]
+    assert "| Fecha | Unidades Vendidas | Existencia en Stock |" in body["respuesta"]
     for fila in filas:
-        assert f"{fila['fecha']}: {fila['unidades_vendidas']:,} vendidas; {fila['existencia']:,} en existencia" in body["respuesta"]
+        assert f"| {fila['fecha']} | {fila['unidades_vendidas']:,} unidades | {fila['existencia']:,} unidades |" in body["respuesta"]
     assert body["herramientas_usadas"][0]["nombre"] == "consultar_historial_ventas"
     assert body["mostrar_alertas"] is False
 
@@ -63,13 +64,15 @@ def test_historial_general_suma_ventas_diarias_sin_inventar_producto(cliente):
     conn.close()
     assert "Historial general de la farmacia" in texto
     assert f"Total vendido: {total:,} unidades" in texto
-    assert texto.count("vendidas;") == 7
+    assert "| Fecha | Unidades Vendidas | Existencia en Stock |" in texto
+    assert texto.count(" unidades |") == 14  # 7 filas x 2 columnas de unidades
 
 
 def test_historial_completo_y_rango_explicito(cliente):
     api, _ = cliente
     completo = api.post("/api/zenit/agente/chat", json={"mensaje": "Dame todo el historial de Paracetamol"}).json()["respuesta"]
-    assert completo.count("vendidas;") == 90
+    assert "| Fecha | Unidades Vendidas | Existencia en Stock |" in completo
+    assert completo.count(" unidades |") == 180  # 90 filas x 2
     rango = api.post("/api/zenit/agente/chat", json={"mensaje": "Historial de Losartan desde 2026-10-01 hasta 2026-10-03"}).json()["respuesta"]
     assert "Historial de Losartán 50 mg" in rango
     assert rango.count("vendidas;") == 3

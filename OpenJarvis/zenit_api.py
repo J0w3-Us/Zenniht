@@ -82,7 +82,7 @@ class SolicitudLecturaFrio(BaseModel):
 
 
 class SolicitudPrediccion(BaseModel):
-    fecha_corte: date = date(2026, 10, 22)
+    fecha_corte: Optional[date] = None
 
 
 class TurnoChat(BaseModel):
@@ -94,7 +94,7 @@ class SolicitudChatAgente(BaseModel):
     mensaje: str
     historial: List[TurnoChat] = []
     modelo: Optional[str] = None
-    fecha_corte: date = date(2026, 10, 22)
+    fecha_corte: Optional[date] = None
 
 
 def _predecir_lote(fecha_corte: str) -> Tuple[List[Dict[str, object]], float]:
@@ -435,6 +435,13 @@ def estado_agente(modelo: Optional[str] = None) -> Dict[str, object]:
 
 @app.post("/api/zenit/agente/chat")
 def chat_agente(solicitud: SolicitudChatAgente) -> Dict[str, object]:
+    fecha_str = solicitud.fecha_corte.isoformat() if solicitud.fecha_corte else ""
+    if not fecha_str:
+        conn = db.get_connection(DB_PATH)
+        max_f = conn.execute("SELECT MAX(fecha) FROM ventas").fetchone()
+        conn.close()
+        fecha_str = max_f[0] if (max_f and max_f[0]) else "2026-10-22"
+
     try:
         return ejecutar_chat_agente(
             mensaje=solicitud.mensaje,
@@ -443,7 +450,7 @@ def chat_agente(solicitud: SolicitudChatAgente) -> Dict[str, object]:
             obtener_estado_fn=_obtener_estado,
             ejecutar_prediccion_fn=_predecir_lote,
             modelo_solicitado=solicitud.modelo,
-            fecha_corte_default=solicitud.fecha_corte.isoformat(),
+            fecha_corte_default=fecha_str,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="La consulta no pudo procesarse. Revisa el mensaje e inténtalo de nuevo.") from exc

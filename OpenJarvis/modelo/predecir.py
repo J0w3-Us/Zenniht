@@ -39,6 +39,9 @@ _CACHE_KEY = None
 _METADATA = {}
 
 
+_WARNED_CHECKPOINT = False
+
+
 def limitar_hilos_cpu() -> None:
     """Limita PyTorch a un hilo intraoperatorio y uno interoperativo."""
     torch.set_num_threads(HILOS_CPU)
@@ -216,7 +219,10 @@ def predecir_lote(fecha_corte: str, csv_path=None, ckpt_path=None) -> Tuple[List
         ponderada = torch.softmax(logits.float().mean(dim=1), dim=-1)[:, 1].cpu().numpy()
         prob_semanal = corregir_probabilidad_ponderada(ponderada, peso)
     else:
-        warnings.warn("Checkpoint antiguo: riesgo semanal aproximado bajo independencia diaria. Reentrena para evento semanal directo.", RuntimeWarning)
+        global _WARNED_CHECKPOINT
+        if not _WARNED_CHECKPOINT:
+            warnings.warn("Checkpoint antiguo: riesgo semanal aproximado bajo independencia diaria. Reentrena para evento semanal directo.", RuntimeWarning)
+            _WARNED_CHECKPOINT = True
         ponderada = torch.softmax(logits.float(), dim=-1)[..., 1].cpu().numpy()
         prob_semanal = agregar_probabilidad_7d(corregir_probabilidad_ponderada(ponderada, peso))
     if not np.isfinite(prob_semanal).all() or ((prob_semanal < 0) | (prob_semanal > 1)).any():

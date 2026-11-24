@@ -48,6 +48,14 @@ def planificar_consulta(texto, catalogo):
         if ventas:
             argumentos["dias"] = dias if dias_match else 90
         return [{"function": {"name": "listar_productos_por_filtro", "arguments": argumentos}}]
+    # Detectar explícitamente consultas de sugerencias o aprobaciones pendientes
+    if re.search(r"\b(sugerencias?|pendientes?|aprobar|aprobacion|ordenes?\s+pendientes?)\b", limpio) and re.search(r"\b(reabast\w*|resurt\w*|compr\w*|orden\w*|pendient\w*|mostr\w*|ver)\b", limpio):
+        return [{"function": {"name": "consultar_sugerencias_pendientes", "arguments": {}}}]
+
+    # Detectar consultas directas de resumen de inventario y cuadrantes Kraljic
+    if re.search(r"\b(resumen|general|total|distrib\w*|cuadrant\w*|kraljic|priorid\w*)\b", limpio) and re.search(r"\b(inventario|stock|existencias?|unidades?\s*dispon\w*)\b", limpio):
+        return [{"function": {"name": "consultar_resumen_inventario", "arguments": {}}}]
+
     return None
 
 

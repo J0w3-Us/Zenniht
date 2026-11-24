@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ArrowRight, Bot, CheckCircle2, Send } from 'lucide-react';
+import { ArrowRight, Bot, CheckCircle2, Edit2, RotateCcw, Send, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import type {
   ZenitAgentOrderSummary,
   ZenitAgentStatus,
@@ -18,6 +18,7 @@ export interface ZenitChatMessage {
   sources?: string[];
   tools?: ZenitAgentToolUse[];
   alerts?: ZenitProduct[];
+  render_widget?: boolean;
   pendingOrders?: ZenitAgentOrderSummary[];
 }
 
@@ -69,6 +70,8 @@ export function ZenitChatWorkspace({
   onOpenSuggestions,
 }: ZenitChatWorkspaceProps) {
   const [input, setInput] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -148,12 +151,89 @@ export function ZenitChatWorkspace({
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {message.content}
                       </ReactMarkdown>
+                    ) : editingMessageId === message.id ? (
+                      <div className="zenit-chat-inline-edit" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+                        <textarea
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
+                          rows={3}
+                          style={{
+                            width: '100%',
+                            padding: '6px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '13px',
+                            fontFamily: 'inherit',
+                            resize: 'vertical',
+                          }}
+                        />
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            onClick={() => setEditingMessageId(null)}
+                            style={{
+                              background: 'transparent',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '4px',
+                              padding: '3px 8px',
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newText = editingText.trim();
+                              setEditingMessageId(null);
+                              if (newText) {
+                                onSendMessage(newText);
+                              }
+                            }}
+                            style={{
+                              background: '#2563eb',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '3px 10px',
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              fontWeight: 500,
+                            }}
+                          >
+                            Guardar y Reenviar
+                          </button>
+                        </div>
+                      </div>
                     ) : (
-                      <p>{message.content}</p>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
+                        <p style={{ margin: 0 }}>{message.content}</p>
+                        <button
+                          type="button"
+                          className="zenit-chat-edit-btn"
+                          title="Editar mensaje"
+                          onClick={() => {
+                            setEditingMessageId(message.id);
+                            setEditingText(message.content);
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            padding: '2px',
+                            cursor: 'pointer',
+                            color: '#94a3b8',
+                            opacity: 0.8,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      </div>
                     )}
                   </div>
 
-                  {message.role === 'assistant' && message.alerts && message.alerts.length > 0 && (
+                  {message.role === 'assistant' && message.render_widget === true && message.alerts && message.alerts.length > 0 && (
                     <div className="zenit-chat-evidence">
                       <div className="zenit-chat-evidence-header">
                         <strong>Riesgo de desabasto (≥ 50%)</strong>
@@ -186,48 +266,92 @@ export function ZenitChatWorkspace({
 
                   {message.role === 'assistant'
                     && message.pendingOrders
-                    && message.pendingOrders.length > 0 && (
-                      <div className="zenit-chat-orders">
-                        <div className="zenit-chat-evidence-header">
-                          <strong>Sugerencias de reabasto</strong>
-                          <button
-                            type="button"
-                            className="zenit-chat-inline-link"
-                            onClick={() => onOpenSuggestions()}
-                          >
-                            Ver todas
-                            <ArrowRight aria-hidden="true" size={13} />
-                          </button>
+                    && message.pendingOrders.length > 0 && (() => {
+                      const uniqueOrders = Array.from(
+                        new Map(message.pendingOrders.map((o) => [o.producto, o])).values()
+                      );
+                      return (
+                        <div className="zenit-chat-orders">
+                          <div className="zenit-chat-evidence-header">
+                            <strong>Sugerencias de reabasto</strong>
+                            <button
+                              type="button"
+                              className="zenit-chat-inline-link"
+                              onClick={() => onOpenSuggestions()}
+                            >
+                              Ver todas
+                              <ArrowRight aria-hidden="true" size={13} />
+                            </button>
+                          </div>
+                          <ul className="zenit-chat-order-list">
+                            {uniqueOrders.slice(0, 5).map((order) => (
+                              <li key={order.id}>
+                                <div>
+                                  <strong>{order.producto}</strong>
+                                  <span>{order.cuadrante_kraljic} · Cantidad: Por definir</span>
+                                <button
+                                  type="button"
+                                  className="zenit-chat-inline-link"
+                                  aria-label={`Ver sugerencia para ${order.producto}`}
+                                  onClick={() => onOpenSuggestions(order.id)}
+                                >
+                                  Ver sugerencia
+                                </button>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="zenit-chat-approve-btn"
+                                  disabled={approvingOrderId === order.id}
+                                  onClick={() => onApproveOrder(order.id)}
+                                >
+                                  <CheckCircle2 aria-hidden="true" size={13} />
+                                  {approvingOrderId === order.id ? 'Aprobando…' : 'Aprobar'}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                        <ul className="zenit-chat-order-list">
-                          {message.pendingOrders.slice(0, 5).map((order) => (
-                            <li key={order.id}>
-                              <div>
-                                <strong>{order.producto}</strong>
-                                <span>{order.cuadrante_kraljic} · Cantidad: Por definir</span>
-                              <button
-                                type="button"
-                                className="zenit-chat-inline-link"
-                                aria-label={`Ver sugerencia para ${order.producto}`}
-                                onClick={() => onOpenSuggestions(order.id)}
-                              >
-                                Ver sugerencia
-                              </button>
-                              </div>
-                              <button
-                                type="button"
-                                className="zenit-chat-approve-btn"
-                                disabled={approvingOrderId === order.id}
-                                onClick={() => onApproveOrder(order.id)}
-                              >
-                                <CheckCircle2 aria-hidden="true" size={13} />
-                                {approvingOrderId === order.id ? 'Aprobando…' : 'Aprobar'}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                      );
+                    })()}
+
+                  {message.role === 'assistant' && (
+                    <div className="zenit-chat-actions-bar" style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="zenit-chat-action-btn"
+                        style={{ background: 'transparent', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', color: '#64748b' }}
+                        title="Reintentar última consulta"
+                        onClick={() => {
+                          const lastUser = [...messages].reverse().find(m => m.role === 'user');
+                          if (lastUser) onSendMessage(lastUser.content);
+                        }}
+                      >
+                        <RotateCcw size={11} /> Reintentar
+                      </button>
+                      <button
+                        type="button"
+                        className="zenit-chat-action-btn"
+                        style={{ background: 'transparent', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', display: 'flex', alignItems: 'center', cursor: 'pointer', color: '#64748b' }}
+                        title="Respuesta útil"
+                        onClick={(e) => {
+                          (e.currentTarget as HTMLElement).style.color = '#16a34a';
+                        }}
+                      >
+                        <ThumbsUp size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        className="zenit-chat-action-btn"
+                        style={{ background: 'transparent', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', display: 'flex', alignItems: 'center', cursor: 'pointer', color: '#64748b' }}
+                        title="Respuesta con errores"
+                        onClick={(e) => {
+                          (e.currentTarget as HTMLElement).style.color = '#dc2626';
+                        }}
+                      >
+                        <ThumbsDown size={11} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </article>
             ))}

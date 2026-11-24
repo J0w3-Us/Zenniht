@@ -5,4 +5,4 @@ from pytorch_forecasting import TemporalFusionTransformer
 class TFTZenit(TemporalFusionTransformer):
     def __init__(self, zenit_metadata=None, **kwargs):
         super().__init__(**kwargs)
-        self.save_hyperparameters({"zenit_metadata": zenit_metadata or {}})
+        self.save_hyperparameters({"zenit_metadata": zenit_metadata or {}}, ignore=["loss", "logging_metrics"])

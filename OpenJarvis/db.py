@@ -382,7 +382,7 @@ def guardar_predicciones(
             for p in predicciones
         ])
 
-        # Crear órdenes sugeridas pendientes para productos en desabasto
+        # Crear órdenes sugeridas pendientes para productos en desabasto con cantidad calculada
         for p in predicciones:
             if float(p["probabilidad"]) >= 0.50:
                 existente = conn.execute(
@@ -390,14 +390,37 @@ def guardar_predicciones(
                     (p["producto"], fecha_corte)
                 ).fetchone()
                 if not existente:
+                    # Calcular cantidad sugerida real basada en demanda, stock y lote mínimo
+                    try:
+                        from presupuesto import obtener_demanda_diaria_sin_quiebre
+                        demanda_d = obtener_demanda_diaria_sin_quiebre(p["producto"], fecha_corte, db_path=db_path)
+                        stock_actual_row = conn.execute(
+                            "SELECT existencia FROM ventas WHERE producto = ? AND fecha = ?",
+                            (p["producto"], fecha_corte)
+                        ).fetchone()
+                        stock_e = int(stock_actual_row["existencia"]) if stock_actual_row else 0
+                        
+                        lote_row = conn.execute(
+                            "SELECT lote_minimo_compra FROM catalogo_precios WHERE producto = ?",
+                            (p["producto"],)
+                        ).fetchone()
+                        lote_min = int(lote_row["lote_minimo_compra"]) if (lote_row and lote_row["lote_minimo_compra"]) else 5
+                        
+                        import math
+                        necesidad = max(0.0, (demanda_d * 10) - stock_e)
+                        cant_calc = max(1, int(math.ceil(necesidad / lote_min))) * lote_min if necesidad > 0 else lote_min
+                    except Exception:
+                        cant_calc = None
+
                     conn.execute("""
                         INSERT INTO ordenes (
-                            producto, cuadrante_kraljic, probabilidad_desabasto,
+                            producto, cuadrante_kraljic, cantidad_sugerida, probabilidad_desabasto,
                             fecha_corte, estado
-                        ) VALUES (?, ?, ?, ?, 'pendiente');
+                        ) VALUES (?, ?, ?, ?, ?, 'pendiente');
                     """, (
                         p["producto"],
                         p["cuadrante_kraljic"],
+                        cant_calc,
                         float(p["probabilidad"]),
                         fecha_corte
                     ))
