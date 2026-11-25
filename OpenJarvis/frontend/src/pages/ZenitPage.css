@@ -1075,28 +1075,84 @@
   font-size: 0.78rem;
 }
 
+/* ── Loading state animado ─────────────────────────── */
 .zenit-loading {
   display: flex;
-  min-height: 7rem;
+  min-height: 9rem;
   flex-direction: column;
   justify-content: center;
-  gap: 0.75rem;
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
+  gap: 1.1rem;
+  padding: 1.5rem 0;
 }
 
-.zenit-loading-line {
-  height: 0.625rem;
-  max-width: 24rem;
+.zenit-loading-skeleton-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Barra de progreso que crece desde la izquierda (controlada por motion) */
+.zenit-loading-bar {
+  height: 3px;
+  max-width: 20rem;
   border-radius: 999px;
-  background: var(--color-bg-tertiary);
-  animation: zenit-pulse 1.4s ease-in-out infinite;
+  background: linear-gradient(
+    90deg,
+    var(--color-accent) 0%,
+    oklch(0.73 0.15 162 / 0.4) 100%
+  );
 }
 
-@keyframes zenit-pulse {
-  50% {
-    opacity: 0.55;
-  }
+/* Filas skeleton shimmer */
+.zenit-loading-shimmer-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.zenit-loading-shimmer {
+  height: 0.55rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-tertiary) 0%,
+    oklch(0.26 0.02 225 / 0.6) 50%,
+    var(--color-bg-tertiary) 100%
+  );
+  background-size: 200% 100%;
+  animation: zenit-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes zenit-shimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+/* Fila de estado con dots */
+.zenit-loading-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.zenit-loading-label {
+  letter-spacing: 0.01em;
+}
+
+.zenit-loading-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.zenit-loading-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-accent);
 }
 
 @media (max-width: 720px) {

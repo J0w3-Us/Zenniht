@@ -6,6 +6,47 @@
   justify-content: space-between;
 }
 
+.zenit-chat-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-secondary);
+}
+
+.zenit-chat-date-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--color-text-secondary);
+}
+
+.zenit-chat-date-icon {
+  color: var(--color-accent);
+}
+
+.zenit-chat-date-label {
+  font-weight: 550;
+}
+
+.zenit-chat-date-input {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.76rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.zenit-chat-date-input:focus {
+  border-color: var(--color-accent);
+}
+
 .zenit-chat-scroll {
   flex: 1;
   min-height: 0;
@@ -239,10 +280,27 @@
   font-weight: 650;
 }
 
+/* ── Thinking / typing indicator animado ───────────── */
+.zenit-chat-thinking-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.zenit-thinking-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
 .zenit-chat-thinking-text {
   margin: 0;
   color: var(--color-text-secondary);
   font-style: italic;
+  font-size: 0.82rem;
 }
 
 .zenit-chat-evidence,

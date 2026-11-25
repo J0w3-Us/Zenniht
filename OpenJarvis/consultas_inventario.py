@@ -56,6 +56,14 @@ def planificar_consulta(texto, catalogo):
     if re.search(r"\b(resumen|general|total|distrib\w*|cuadrant\w*|kraljic|priorid\w*)\b", limpio) and re.search(r"\b(inventario|stock|existencias?|unidades?\s*dispon\w*)\b", limpio):
         return [{"function": {"name": "consultar_resumen_inventario", "arguments": {}}}]
 
+    # Ruteo determinista ultra-rápido para ejecución de predicción TFT / alertas de desabasto
+    if re.search(r"\b(predicci\w*|tft|estim\w*)\b", limpio) and re.search(r"\b(desabasto|riesgo|alertas?|ejecut\w*|corr\w*|calcul\w*)\b", limpio):
+        fechas = re.findall(r"\b\d{4}-\d{2}-\d{2}\b", limpio)
+        args_tft = {}
+        if fechas:
+            args_tft["fecha_corte"] = fechas[0]
+        return [{"function": {"name": "ejecutar_prediccion_tft", "arguments": args_tft}}]
+
     return None
 
 

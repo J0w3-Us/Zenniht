@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ArrowRight, Bot, CheckCircle2, Edit2, RotateCcw, Send, ThumbsDown, ThumbsUp, X } from 'lucide-react';
+import { ArrowRight, Bot, Calendar, CheckCircle2, Edit2, RotateCcw, Send, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import type {
   ZenitAgentOrderSummary,
   ZenitAgentStatus,
@@ -62,8 +63,10 @@ const SUGGESTED_PROMPTS = [
 
 export function ZenitChatWorkspace({
   messages,
+  dateCutoff,
   sending,
   approvingOrderId,
+  onDateCutoffChange,
   onSendMessage,
   onApproveOrder,
   onOpenInventoryAlerts,
@@ -112,6 +115,19 @@ export function ZenitChatWorkspace({
 
   return (
     <section className="zenit-chat-workspace" aria-label="Agente ZENIT">
+      <div className="zenit-chat-header-bar">
+        <div className="zenit-chat-date-selector">
+          <Calendar size={13} className="zenit-chat-date-icon" aria-hidden="true" />
+          <span className="zenit-chat-date-label">Fecha de corte:</span>
+          <input
+            type="date"
+            className="zenit-chat-date-input"
+            value={dateCutoff}
+            onChange={(e) => onDateCutoffChange(e.target.value)}
+            title="Fecha de corte histórica para evaluación de inventario y predicción TFT"
+          />
+        </div>
+      </div>
       <div className="zenit-chat-scroll">
         {messages.length === 0 ? (
           <div className="zenit-chat-welcome">
@@ -356,16 +372,34 @@ export function ZenitChatWorkspace({
               </article>
             ))}
 
+            <AnimatePresence>
             {sending && (
-              <article className="zenit-chat-turn is-assistant is-thinking">
+              <motion.article
+                className="zenit-chat-turn is-assistant is-thinking"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+              >
                 <span className="zenit-chat-avatar" aria-hidden="true">
                   <Bot size={16} />
                 </span>
                 <div className="zenit-chat-bubble">
+                  <span className="zenit-chat-thinking-dots" aria-label="Analizando" role="status">
+                    {[0, 1, 2].map((i) => (
+                      <motion.span
+                        key={i}
+                        className="zenit-thinking-dot"
+                        animate={{ y: [0, -5, 0], opacity: [0.4, 1, 0.4] }}
+                        transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.18, ease: 'easeInOut' }}
+                      />
+                    ))}
+                  </span>
                   <p className="zenit-chat-thinking-text">Analizando…</p>
                 </div>
-              </article>
+              </motion.article>
             )}
+            </AnimatePresence>
             <div ref={endRef} />
           </div>
         )}

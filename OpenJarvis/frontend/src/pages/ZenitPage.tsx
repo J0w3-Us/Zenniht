@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
   AlertTriangle,
@@ -83,11 +84,44 @@ function getErrorMessage(error: unknown): string {
 }
 
 function LoadingState() {
+  const dots = [0, 1, 2];
   return (
-    <div className="zenit-loading" role="status" aria-busy="true">
-      <div className="zenit-loading-line" />
-      <span>Consultando el inventario local…</span>
-    </div>
+    <motion.div
+      className="zenit-loading"
+      role="status"
+      aria-busy="true"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.28, ease: 'easeOut' }}
+    >
+      <div className="zenit-loading-skeleton-wrap">
+        <motion.div
+          className="zenit-loading-bar"
+          initial={{ scaleX: 0, transformOrigin: 'left' }}
+          animate={{ scaleX: 1 }}
+          transition={{ duration: 0.9, ease: [0.4, 0, 0.2, 1] }}
+        />
+        <div className="zenit-loading-shimmer-row" aria-hidden="true">
+          <div className="zenit-loading-shimmer" style={{ width: '60%' }} />
+          <div className="zenit-loading-shimmer" style={{ width: '40%' }} />
+          <div className="zenit-loading-shimmer" style={{ width: '75%' }} />
+        </div>
+      </div>
+      <div className="zenit-loading-status">
+        <span className="zenit-loading-label">Consultando el inventario local</span>
+        <span className="zenit-loading-dots" aria-hidden="true">
+          {dots.map((i) => (
+            <motion.span
+              key={i}
+              className="zenit-loading-dot"
+              animate={{ opacity: [0.3, 1, 0.3], y: [0, -4, 0] }}
+              transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2, ease: 'easeInOut' }}
+            />
+          ))}
+        </span>
+      </div>
+    </motion.div>
   );
 }
 
@@ -203,6 +237,9 @@ export function ZenitPage() {
         currentState = await getZenitState();
       }
       setState(currentState);
+      if (currentState.fecha_existencia) {
+        setDateCutoff((current) => current === FECHA_DEMO || !current ? (currentState.fecha_existencia ?? FECHA_DEMO) : current);
+      }
     } catch (requestError) {
       pushToast(getErrorMessage(requestError), 'error');
     } finally {
@@ -611,8 +648,9 @@ export function ZenitPage() {
                   </div>
                 </div>
 
+                <AnimatePresence mode="wait">
                 {loading && !state ? (
-                  <LoadingState />
+                  <LoadingState key="loading" />
                 ) : !hasValidProductSet ? (
                   <section className="zenit-empty" aria-labelledby="zenit-inventory-empty-title">
                     <span className="zenit-empty-icon"><Database aria-hidden="true" size={20} /></span>
@@ -680,6 +718,7 @@ export function ZenitPage() {
                     />
                   </>
                 )}
+                </AnimatePresence>
               </section>
             )}
 
